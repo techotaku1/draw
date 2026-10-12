@@ -24,6 +24,13 @@ const canForwardToBetterStack =
   Boolean(Env.NEXT_PUBLIC_BETTER_STACK_INGESTING_HOST);
 
 await configure({
+  // LogTape refuses a second `configure` call, and in development this module
+  // is re-evaluated on every hot reload. Without this flag the second
+  // evaluation throws `ConfigError: Already configured`, which propagates out
+  // of the import and makes every route that logs answer 500 until the server
+  // is restarted by hand. Resetting is safe: the configuration below is the
+  // whole of it, so re-applying it rebuilds exactly the same sinks.
+  reset: true,
   sinks: {
     console: getConsoleSink({ formatter: getJsonLinesFormatter() }),
     betterStack: fromAsyncSink(betterStackSink),

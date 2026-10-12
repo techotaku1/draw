@@ -2,11 +2,22 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { GoogleGenAI } from '@google/genai';
 import { Env } from './Env';
 
+/** Used whenever `GEMINI_MODEL` is unset. */
+const DEFAULT_MODEL = 'gemini-3.6-flash';
+
 /**
- * Model used by the AI features. This is the single place to change it — no
- * caller depends on the model id.
+ * Model used by the AI features. No caller depends on the id, so swapping it
+ * is a one-line change in `.env`.
+ *
+ * It is worth swapping while diagnosing landmark accuracy: if a stronger
+ * model places the points well on an image where this one does not, the limit
+ * is the model rather than the wording of the prompt, and that tells you
+ * which one to go and fix. `gemini-3.1-pro-preview` is the only Pro text
+ * model this API exposes — the `*-pro-image` entries generate images and
+ * cannot do this job. Pro is slower and spends a separate, smaller daily
+ * allowance, so it is a diagnostic rather than a default.
  */
-export const GEMINI_MODEL = 'gemini-3.6-flash';
+export const GEMINI_MODEL = Env.GEMINI_MODEL ?? DEFAULT_MODEL;
 
 /**
  * Used when the primary is saturated or its allowance is spent. It is faster

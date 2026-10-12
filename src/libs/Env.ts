@@ -18,6 +18,9 @@ export const Env = createEnv({
     // it the studio still builds the skeleton locally and both AI endpoints
     // answer 503.
     GEMINI_API_KEY: z.string().min(1).optional(),
+    // Optional: overrides the model the AI features call. Set it to swap in a
+    // stronger model while diagnosing landmark accuracy, then remove it.
+    GEMINI_MODEL: z.string().min(1).optional(),
   },
   client: {
     NEXT_PUBLIC_APP_URL: z.string().optional(),
@@ -36,6 +39,7 @@ export const Env = createEnv({
     ARCJET_KEY: process.env.ARCJET_KEY,
     CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY,
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+    GEMINI_MODEL: process.env.GEMINI_MODEL,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
     NEXT_PUBLIC_LOGGING_LEVEL: process.env.NEXT_PUBLIC_LOGGING_LEVEL,

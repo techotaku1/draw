@@ -44,7 +44,11 @@ export const FaceStudio = (props: {
   // an upload: without it the marks reset to zero but no click places anything.
   const activeId = selectedId ?? nextUnset(props.marks);
   const [age, setAge] = useState<FaceAge>('young');
-  const [stepIndex, setStepIndex] = useState(0);
+  // Start on the finished construction, not on the first step. The steps are
+  // a lesson the artist opts into by walking back through them; landing on
+  // step one means a detection that found all eleven landmarks draws nothing
+  // but the head box, which reads as a broken detection.
+  const [stepIndex, setStepIndex] = useState(FACE_STEP_COUNT - 1);
 
   const guides = buildFaceGuides(props.marks, props.aspect);
   const marked = FACE_SEQUENCE.filter((def) => Boolean(props.marks[def.id])).length;

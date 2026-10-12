@@ -82,7 +82,10 @@ export const SkeletonStudio = (props: {
     JOINT_SEQUENCE[0]?.id ?? null,
   );
   const [artStyle, setArtStyle] = useState<ArtStyle>('anime');
-  const [stepIndex, setStepIndex] = useState(0);
+  // Start on the finished construction, not on the first step. The steps are
+  // a lesson the artist opts into by walking back through them; landing on
+  // step one means a completed detection draws almost nothing.
+  const [stepIndex, setStepIndex] = useState(STEP_COUNT - 1);
   const [coach, setCoach] = useState<CoachState>({ status: 'idle' });
 
   const pose = toPose(props.marks);
@@ -183,22 +186,16 @@ export const SkeletonStudio = (props: {
             activeId={activeJointId}
             overlay={
               props.showGuides ? (
-                <>
-                  {/* The whole construction stays visible; the current step is
-                      the only part drawn at full strength. */}
-                  <SkeletonOverlay
-                    skeleton={skeleton}
-                    layers={ALL_LAYERS}
-                    aspect={props.aspect}
-                    className="pointer-events-none absolute inset-0 h-full w-full opacity-30"
-                  />
-                  <SkeletonOverlay
-                    skeleton={skeleton}
-                    layers={layersForStep(stepIndex)}
-                    aspect={props.aspect}
-                    className="pointer-events-none absolute inset-0 h-full w-full"
-                  />
-                </>
+                /* Only what has been built so far. Each step already carries
+                   every earlier layer, so a second pass of the finished
+                   construction underneath added nothing but the layers the
+                   artist has not reached yet. */
+                <SkeletonOverlay
+                  skeleton={skeleton}
+                  layers={layersForStep(stepIndex)}
+                  aspect={props.aspect}
+                  className="pointer-events-none absolute inset-0 h-full w-full"
+                />
               ) : null
             }
             photoOpacity={props.photoOpacity}

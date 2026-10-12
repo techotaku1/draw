@@ -10,6 +10,8 @@ const baseConfig: NextConfig = {
   },
   poweredByHeader: false,
   reactStrictMode: true,
+  cacheComponents: true,
+  partialPrefetching: true,
   reactCompiler: process.env.NODE_ENV === 'production', // Keep the development environment fast
   experimental: {
     // Use the Rust version, instead of the OG Babel one

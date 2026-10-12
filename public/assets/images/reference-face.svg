@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="520" viewBox="0 0 400 520" role="img" aria-label="Front-facing anime head built on a cranium circle and a V-shaped jaw">
+  <title>Reference face</title>
+  <rect width="400" height="520" fill="#f8fafc"/>
+
+  <!-- Head silhouette: the cranium circle closed off by the V of the jaw. -->
+  <path
+    d="M70,190 A130,130 0 0 1 330,190
+       L305,268
+       Q292,352 200,430
+       Q108,352 95,268 Z"
+    fill="#fdf1e7"
+    stroke="#64748b"
+    stroke-width="3"
+    stroke-linejoin="round"
+  />
+
+  <!-- Hair: a simple fringe sitting on the upper half of the cranium. -->
+  <path
+    d="M70,190 A130,130 0 0 1 330,190
+       Q300,150 268,168
+       Q246,120 200,128
+       Q150,118 132,166
+       Q98,150 70,190 Z"
+    fill="#4b3a2f"
+    stroke="#3a2c24"
+    stroke-width="2"
+    stroke-linejoin="round"
+  />
+
+  <!-- Ears, between the eye line and the nose. -->
+  <ellipse cx="82" cy="288" rx="13" ry="26" fill="#fdf1e7" stroke="#64748b" stroke-width="3"/>
+  <ellipse cx="318" cy="288" rx="13" ry="26" fill="#fdf1e7" stroke="#64748b" stroke-width="3"/>
+
+  <!-- Eyes on the eye line at y=265, inside the lower part of the cranium. -->
+  <g>
+    <path d="M112,252 Q145,236 178,254 L176,288 Q145,298 114,286 Z" fill="#ffffff" stroke="#2f3b4d" stroke-width="4" stroke-linejoin="round"/>
+    <circle cx="146" cy="268" r="17" fill="#3b6ea5"/>
+    <circle cx="146" cy="268" r="8" fill="#16243a"/>
+    <circle cx="152" cy="260" r="5" fill="#ffffff"/>
+    <path d="M110,232 Q145,220 180,234" fill="none" stroke="#3a2c24" stroke-width="6" stroke-linecap="round"/>
+  </g>
+  <g>
+    <path d="M288,252 Q255,236 222,254 L224,288 Q255,298 286,286 Z" fill="#ffffff" stroke="#2f3b4d" stroke-width="4" stroke-linejoin="round"/>
+    <circle cx="254" cy="268" r="17" fill="#3b6ea5"/>
+    <circle cx="254" cy="268" r="8" fill="#16243a"/>
+    <circle cx="260" cy="260" r="5" fill="#ffffff"/>
+    <path d="M290,232 Q255,220 220,234" fill="none" stroke="#3a2c24" stroke-width="6" stroke-linecap="round"/>
+  </g>
+
+  <!-- Nose: the wedge the guide describes, tip at y=340. -->
+  <path d="M192,322 L200,340 L210,338" fill="none" stroke="#b08968" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Mouth: one long thin line at y=385, plus a shorter lower-lip line. -->
+  <path d="M180,385 Q200,394 220,385" fill="none" stroke="#a8566b" stroke-width="3" stroke-linecap="round"/>
+  <path d="M191,396 Q200,400 209,396" fill="none" stroke="#c98b9b" stroke-width="2" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="800" viewBox="0 0 400 800" role="img" aria-label="Standing mannequin in a contrapposto pose">
+  <title>Reference pose</title>
+  <rect width="400" height="800" fill="#f8fafc"/>
+  <ellipse cx="205" cy="752" rx="96" ry="16" fill="#e2e8f0"/>
+
+  <g stroke="#64748b" stroke-linecap="round" fill="none">
+    <!-- Outline pass: the same limbs drawn slightly thicker to read as a contour. -->
+    <g stroke-width="30"><line x1="145" y1="138" x2="126" y2="252"/></g>
+    <g stroke-width="24"><line x1="126" y1="252" x2="118" y2="352"/></g>
+    <g stroke-width="30"><line x1="255" y1="130" x2="280" y2="246"/></g>
+    <g stroke-width="24"><line x1="280" y1="246" x2="296" y2="342"/></g>
+    <g stroke-width="42"><line x1="168" y1="375" x2="170" y2="548"/></g>
+    <g stroke-width="32"><line x1="170" y1="548" x2="172" y2="722"/></g>
+    <g stroke-width="42"><line x1="238" y1="392" x2="233" y2="552"/></g>
+    <g stroke-width="32"><line x1="233" y1="552" x2="238" y2="726"/></g>
+    <g stroke-width="22"><line x1="172" y1="722" x2="148" y2="738"/></g>
+    <g stroke-width="22"><line x1="238" y1="726" x2="264" y2="742"/></g>
+  </g>
+
+  <g stroke="#cbd5e1" stroke-linecap="round" fill="none">
+    <!-- Fill pass -->
+    <g stroke-width="26"><line x1="145" y1="138" x2="126" y2="252"/></g>
+    <g stroke-width="20"><line x1="126" y1="252" x2="118" y2="352"/></g>
+    <g stroke-width="26"><line x1="255" y1="130" x2="280" y2="246"/></g>
+    <g stroke-width="20"><line x1="280" y1="246" x2="296" y2="342"/></g>
+    <g stroke-width="38"><line x1="168" y1="375" x2="170" y2="548"/></g>
+    <g stroke-width="28"><line x1="170" y1="548" x2="172" y2="722"/></g>
+    <g stroke-width="38"><line x1="238" y1="392" x2="233" y2="552"/></g>
+    <g stroke-width="28"><line x1="233" y1="552" x2="238" y2="726"/></g>
+    <g stroke-width="18"><line x1="172" y1="722" x2="148" y2="738"/></g>
+    <g stroke-width="18"><line x1="238" y1="726" x2="264" y2="742"/></g>
+  </g>
+
+  <path
+    d="M145,138 L255,130 Q240,262 238,392 L168,375 Q158,262 145,138 Z"
+    fill="#cbd5e1"
+    stroke="#64748b"
+    stroke-width="3"
+    stroke-linejoin="round"
+  />
+
+  <line x1="200" y1="96" x2="200" y2="140" stroke="#cbd5e1" stroke-width="26" stroke-linecap="round"/>
+  <ellipse cx="200" cy="55" rx="36" ry="45" fill="#cbd5e1" stroke="#64748b" stroke-width="3"/>
+
+  <circle cx="118" cy="352" r="12" fill="#cbd5e1" stroke="#64748b" stroke-width="3"/>
+  <circle cx="296" cy="342" r="12" fill="#cbd5e1" stroke="#64748b" stroke-width="3"/>
+</svg>

@@ -1,6 +1,6 @@
 import { ClerkProvider } from '@clerk/nextjs';
-import { setRequestLocale } from 'next-intl/server';
-import { ClerkLocalizations } from '@/utils/AppConfig';
+import { getTranslations, setRequestLocale } from 'next-intl/server';
+import { clerkLocalization } from '@/utils/AppConfig';
 
 export default async function AuthLayout(props: {
   children: React.ReactNode;
@@ -9,8 +9,8 @@ export default async function AuthLayout(props: {
   const { locale } = await props.params;
   setRequestLocale(locale);
 
-  const clerkLocale =
-    ClerkLocalizations.supportedLocales[locale] ?? ClerkLocalizations.defaultLocale;
+  const t = await getTranslations({ locale, namespace: 'SignIn' });
+  const clerkLocale = clerkLocalization(locale, t('clerk_subtitle'));
 
   return (
     <ClerkProvider
@@ -19,6 +19,9 @@ export default async function AuthLayout(props: {
       }}
       localization={clerkLocale}
       signInUrl="/sign-in"
+      // OAuth needs somewhere to land when the Google account has no Clerk user
+      // yet: Clerk transfers the sign-in into a sign-up. Without this the flow
+      // hangs after the Google consent screen. The route is unlinked, not public.
       signUpUrl="/sign-up"
       signInFallbackRedirectUrl="/dashboard"
       signUpFallbackRedirectUrl="/dashboard"
@@ -28,3 +31,8 @@ export default async function AuthLayout(props: {
     </ClerkProvider>
   );
 }
+
+// Temporary opt-out: every route in this group reads Clerk auth outside a
+// Suspense boundary. These are boilerplate demo pages; migrating them is its
+// own change. The studio has its own layout and stays instant.
+export const instant = false;

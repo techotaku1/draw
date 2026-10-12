@@ -1,10 +1,18 @@
 import type { Metadata, Viewport } from 'next';
 import { hasLocale, NextIntlClientProvider } from 'next-intl';
 import { setRequestLocale } from 'next-intl/server';
+import { Archivo } from 'next/font/google';
 import { notFound } from 'next/navigation';
-import { DemoBadge } from '@/components/DemoBadge';
 import { routing } from '@/libs/I18nRouting';
 import '@/styles/global.css';
+
+// One family for the whole tool. Archivo carries the drafting register and has
+// the tabular figures every measurement panel depends on.
+const archivo = Archivo({
+  subsets: ['latin'],
+  variable: '--font-archivo',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   icons: [
@@ -53,13 +61,15 @@ export default async function RootLayout(props: {
   setRequestLocale(locale);
 
   return (
-    <html lang={locale}>
-      <body>
-        <NextIntlClientProvider>
-          {props.children}
-
-          <DemoBadge />
-        </NextIntlClientProvider>
+    <html lang={locale} className={archivo.variable}>
+      {/* Browser extensions commonly stamp attributes onto <body> before React
+          hydrates — one seen in the wild adds `data-cjcrx`. React reports that
+          as a mismatch and gives up patching the tree, which can blank the
+          page. This is the documented escape hatch and it is deliberately
+          narrow: it covers this element's own attributes, never its children,
+          so a real mismatch inside the app still surfaces. */}
+      <body className="font-sans" suppressHydrationWarning>
+        <NextIntlClientProvider>{props.children}</NextIntlClientProvider>
       </body>
     </html>
   );

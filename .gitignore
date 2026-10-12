@@ -60,3 +60,9 @@ build-archive.log
 /test-results/
 /playwright-report/
 /playwright/.cache/
+.clerk/
+
+# tooling and test output, not part of the app
+.atl/
+.claude/
+.vitest-attachments/

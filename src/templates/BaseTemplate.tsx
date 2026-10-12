@@ -1,6 +1,11 @@
 import { useTranslations } from 'next-intl';
 import { AppConfig } from '@/utils/AppConfig';
 
+// Read once at module load rather than on every render. The clock is an
+// unstable value during prerender, and a copyright year only has to be correct
+// to the year, so baking it at build time is both accurate and static.
+const COPYRIGHT_YEAR = new Date().getFullYear();
+
 export const BaseTemplate = (props: {
   leftNav: React.ReactNode;
   rightNav?: React.ReactNode;
@@ -32,7 +37,7 @@ export const BaseTemplate = (props: {
 
         <footer className="border-t border-gray-300 py-8 text-center text-sm">
           {t.rich('footer_text', {
-            year: new Date().getFullYear(),
+            year: COPYRIGHT_YEAR,
             name: AppConfig.name,
             author: () => (
               <a

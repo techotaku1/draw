@@ -1,3 +1,67 @@
 @layer theme, base, clerk, components, utilities; /* Ensure Clerk is compatible with Tailwind CSS v4 */
 
 @import 'tailwindcss';
+
+@theme {
+  /* Graphite chrome. The guide colours are the only saturation on screen, so
+     the tool around them stays strictly neutral. */
+  --color-graphite-950: #14171a;
+  --color-graphite-900: #1c2024;
+  --color-graphite-800: #272c31;
+  --color-graphite-700: #343a41;
+  --color-graphite-600: #454c55;
+  --color-chalk: #e9ebed;
+  --color-chalk-dim: #a4abb3;
+  /* The quietest text still clears 5:1 against the app background. */
+  --color-chalk-faint: #8a929b;
+  /* The one light surface: the sheet the reference sits on. */
+  --color-sheet: #f2f3f4;
+
+  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  /* Measurements are read by comparing them, so digits never shift width. */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  input[type='range'] {
+    accent-color: var(--color-chalk);
+  }
+
+  input[type='checkbox'] {
+    accent-color: var(--color-chalk);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* Clerk's prebuilt screens render their own footer. These rules are unlayered
+   on purpose: Clerk's styles live in the `clerk` layer (see `cssLayerName`),
+   and unlayered CSS outranks every layer, so they do not depend on order.
+
+   `cl-footerItem` and the `data-clerk-dev-mode-*` attributes are Clerk's stable
+   hooks; the `cl-internal-*` classes beside them carry build hashes and change
+   between releases, so they are not safe to target.
+
+   The development notice only renders with development keys and disappears on
+   its own in production. The "Secured by Clerk" badge does not: Clerk has no
+   `appearance.elements` key for it and removes it through a paid toggle in
+   Dashboard → Settings → Branding. Hiding it here is a styling choice, not that
+   toggle. */
+[data-clerk-dev-mode-overlay],
+[data-clerk-dev-mode-notice] {
+  display: none !important;
+}
+
+.cl-footerItem {
+  display: none !important;
+}

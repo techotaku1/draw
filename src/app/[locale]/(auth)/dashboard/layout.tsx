@@ -1,4 +1,5 @@
 import { SignOutButton } from '@clerk/nextjs';
+import { auth } from '@clerk/nextjs/server';
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
@@ -25,6 +26,16 @@ export async function generateMetadata(props: DashboardLayoutProps): Promise<Met
 
 export default async function DashboardLayout(props: DashboardLayoutProps) {
   const { locale } = await props.params;
+
+  // Protection lives on the resource now: `createRouteMatcher` is deprecated,
+  // so the middleware no longer guards this route and the layout has to. The
+  // redirect target is the `signInUrl` the ClerkProvider above already sets.
+  const { isAuthenticated, redirectToSignIn } = await auth({ treatPendingAsSignedOut: false });
+
+  if (!isAuthenticated) {
+    redirectToSignIn();
+  }
+
   setRequestLocale(locale);
   const t = await getTranslations({
     locale,

@@ -575,20 +575,15 @@ const jawLeavesSkull = (
 };
 
 /**
- * One jaw arm, sampled: a curve that leaves the cranium tangentially and
- * sweeps down to the chin, bent by the marked corner.
+ * Samples one quadratic Bézier, endpoints included.
  *
- * The corner is the curve's control point rather than a vertex on it. As a
- * vertex it produced a visible crease, and the whole point of the shape is
- * that the skull and the jaw form a single unbroken outline.
- *
- * @param start The tangency point on the cranium.
- * @param corner The marked jaw corner, which bends the curve.
- * @param chin The tip of the chin.
- * @param samples How many segments to sample the curve into.
- * @returns The sampled arm, from the cranium down to the chin.
+ * @param from Where the curve starts.
+ * @param control The point that bends it.
+ * @param to Where the curve ends.
+ * @param samples How many segments to cut it into.
+ * @returns The sampled polyline, start and end included.
  */
-const jawSweep = (start: Point, corner: Point, chin: Point, samples = 16): Point[] => {
+const quadratic = (from: Point, control: Point, to: Point, samples: number): Point[] => {
   const out: Point[] = [];
 
   for (let i = 0; i <= samples; i += 1) {
@@ -596,12 +591,68 @@ const jawSweep = (start: Point, corner: Point, chin: Point, samples = 16): Point
     const inv = 1 - t;
 
     out.push({
-      x: inv * inv * start.x + 2 * inv * t * corner.x + t * t * chin.x,
-      y: inv * inv * start.y + 2 * inv * t * corner.y + t * t * chin.y,
+      x: inv * inv * from.x + 2 * inv * t * control.x + t * t * to.x,
+      y: inv * inv * from.y + 2 * inv * t * control.y + t * t * to.y,
     });
   }
 
   return out;
+};
+
+/** How far past the corner the second span reaches for its control point. */
+const JAW_SLACK = 0.45;
+
+/**
+ * One jaw arm: from the cranium, through the marked corner, down to the chin.
+ *
+ * Two spans rather than one, because a single quadratic cannot satisfy both
+ * of the things this line has to do. Its control point only pulls the curve
+ * toward the corner, so the jaw came out narrower than the one that was
+ * marked and tapered to a point below the face. Splitting the arm at the
+ * corner makes the corner an endpoint, which the curve must pass through.
+ *
+ * The first span starts at the tangency point and takes its control from the
+ * corner projected onto the tangent line, so it leaves the circle without a
+ * crease. The second span reuses the direction the first one arrives with, so
+ * the two meet smoothly: the whole arm still reads as one stroke.
+ *
+ * @param start The tangency point on the cranium.
+ * @param corner The marked jaw corner, which the arm passes through.
+ * @param chin The tip of the chin.
+ * @param cranium The fitted cranium circle.
+ * @returns The sampled arm, from the cranium down to the chin.
+ */
+const jawSweep = (
+  start: Point,
+  corner: Point,
+  chin: Point,
+  cranium: NonNullable<Cranium>,
+): Point[] => {
+  const outward = unitVector(cranium.center, start);
+  const reach = distance(start, corner);
+
+  if (!outward || reach <= 0) {
+    return [start, corner, chin];
+  }
+
+  // The tangent at `start` is perpendicular to the radius there. Project the
+  // corner onto that line to get a control point that both lies on the
+  // tangent and sits alongside the corner.
+  const along = { x: -outward.y, y: outward.x };
+  const toCorner = { x: corner.x - start.x, y: corner.y - start.y };
+  const run = toCorner.x * along.x + toCorner.y * along.y;
+  const hinge = { x: start.x + along.x * run, y: start.y + along.y * run };
+
+  const arriving = unitVector(hinge, corner);
+
+  if (!arriving) {
+    return [start, corner, chin];
+  }
+
+  const slack = distance(corner, chin) * JAW_SLACK;
+  const leaving = { x: corner.x + arriving.x * slack, y: corner.y + arriving.y * slack };
+
+  return [...quadratic(start, hinge, corner, 10), ...quadratic(corner, leaving, chin, 10).slice(1)];
 };
 
 /**
@@ -632,8 +683,8 @@ const buildJaw = (chin: Point, jawL: Point, jawR: Point, cranium: Cranium): Poin
   }
 
   return [
-    ...jawSweep(leftStart, jawL, chin),
-    ...jawSweep(rightStart, jawR, chin).toReversed().slice(1),
+    ...jawSweep(leftStart, jawL, chin, cranium),
+    ...jawSweep(rightStart, jawR, chin, cranium).toReversed().slice(1),
   ];
 };
 

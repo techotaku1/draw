@@ -244,6 +244,20 @@ describe(buildFaceGuides, () => {
       expect(offCircle(jaw.at(-1))).toBeCloseTo(0, 6);
     });
 
+    it('runs the jaw through the marked corners, not merely toward them', () => {
+      const { jaw } = buildFaceGuides(sampleFace, ASPECT);
+      const { jaw: plain } = buildFaceGuides({ ...sampleFace, crownTop: undefined }, ASPECT);
+      const closest = (target: Corner | undefined) =>
+        Math.min(...jaw.map((point) => gap(point, target)));
+
+      // `plain` has no cranium, so its three vertices are the marked corners
+      // and chin in view-box space. A single quadratic only leaned toward
+      // them, which drew a jaw narrower than the one the artist marked.
+      expect(closest(plain.at(0))).toBeCloseTo(0, 6);
+      expect(closest(plain.at(1))).toBeCloseTo(0, 6);
+      expect(closest(plain.at(2))).toBeCloseTo(0, 6);
+    });
+
     it('leaves the cranium tangentially so skull and jaw read as one outline', () => {
       const { jaw, cranium } = buildFaceGuides(sampleFace, ASPECT);
 

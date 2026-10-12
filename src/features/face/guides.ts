@@ -530,50 +530,86 @@ const buildLines = (marks: Marks, overshoot: number, cranium: Cranium): GuideLin
 };
 
 /**
- * The far end of one jaw arm: the straight line that runs from the chin
- * through the marked corner, carried up the side of the head.
+ * Where the jaw leaves the skull: the point at which a line drawn from the
+ * marked corner grazes the cranium circle, taking the tangent on the far side
+ * from the chin so the jaw climbs around the head rather than cutting under it.
  *
- * The line is pinned to two real landmarks, so it lies on the jaw that was
- * actually drawn — that comes first. Where it reaches is second: it stops on
- * the cranium circle when it crosses one, and otherwise at its closest
- * approach to the circle. Bending it to force contact is what drew the spike,
- * and it would also pull the line off the character's jaw.
+ * Taking the tangent from the CORNER rather than from the chin is what lets
+ * the jaw curve leave the circle smoothly. The segment corner-to-tangency is
+ * perpendicular to the radius there, so a curve that starts at the tangency
+ * point and heads toward the corner continues the circle without a crease:
+ * skull and jaw read as one outline, the way they are drawn by hand.
  *
- * @param chin The tip of the chin, where both arms meet.
- * @param corner The marked jaw corner the arm runs through.
+ * @param corner The marked jaw corner.
+ * @param chin The tip of the chin, used to pick which of the two tangents.
  * @param cranium The fitted cranium circle.
- * @returns The far end of the arm, never nearer the chin than the corner is.
+ * @returns The tangency point, or null when the corner lies inside the circle.
  */
-const jawArmEnd = (chin: Point, corner: Point, cranium: NonNullable<Cranium>): Point => {
-  const along = unitVector(chin, corner);
+const jawLeavesSkull = (
+  corner: Point,
+  chin: Point,
+  cranium: NonNullable<Cranium>,
+): Point | null => {
+  const { center, radius } = cranium;
+  const reach = distance(corner, center);
 
-  if (!along) {
-    return corner;
+  if (reach <= radius || radius <= 0) {
+    return null;
   }
 
-  const toCenter = { x: cranium.center.x - chin.x, y: cranium.center.y - chin.y };
-  const closest = toCenter.x * along.x + toCenter.y * along.y;
-  const strayed = toCenter.x ** 2 + toCenter.y ** 2 - closest ** 2;
-  const inside = cranium.radius ** 2 - strayed;
+  const toCorner = Math.atan2(corner.y - center.y, corner.x - center.x);
+  const spread = Math.acos(radius / reach);
 
-  // Crossing the circle: stop where it leaves. Missing it: stop where it comes
-  // nearest, which still carries the line up alongside the skull.
-  const travel = inside >= 0 ? closest + Math.sqrt(inside) : closest;
-  const reach = Math.max(travel, distance(chin, corner));
+  const [ahead, behind] = [toCorner + spread, toCorner - spread].map((angle) => ({
+    x: center.x + Math.cos(angle) * radius,
+    y: center.y + Math.sin(angle) * radius,
+  }));
 
-  return { x: chin.x + along.x * reach, y: chin.y + along.y * reach };
+  if (!(ahead && behind)) {
+    return null;
+  }
+
+  // Both tangents are smooth; the one further from the chin is the one that
+  // climbs the side of the head instead of doubling back underneath it.
+  return distance(ahead, chin) > distance(behind, chin) ? ahead : behind;
+};
+
+/**
+ * One jaw arm, sampled: a curve that leaves the cranium tangentially and
+ * sweeps down to the chin, bent by the marked corner.
+ *
+ * The corner is the curve's control point rather than a vertex on it. As a
+ * vertex it produced a visible crease, and the whole point of the shape is
+ * that the skull and the jaw form a single unbroken outline.
+ *
+ * @param start The tangency point on the cranium.
+ * @param corner The marked jaw corner, which bends the curve.
+ * @param chin The tip of the chin.
+ * @param samples How many segments to sample the curve into.
+ * @returns The sampled arm, from the cranium down to the chin.
+ */
+const jawSweep = (start: Point, corner: Point, chin: Point, samples = 16): Point[] => {
+  const out: Point[] = [];
+
+  for (let i = 0; i <= samples; i += 1) {
+    const t = i / samples;
+    const inv = 1 - t;
+
+    out.push({
+      x: inv * inv * start.x + 2 * inv * t * corner.x + t * t * chin.x,
+      y: inv * inv * start.y + 2 * inv * t * corner.y + t * t * chin.y,
+    });
+  }
+
+  return out;
 };
 
 /**
  * The V of the jaw, carried up until each arm lands on the cranium circle.
  *
  * A manga head is not a circle with a separate V floating under it: the jaw
- * grows out of the skull. Each arm is therefore ONE straight diagonal, with no
- * vertex between the skull and the chin — a bend there drew a visible spike.
- *
- * The line is pinned to the chin and the marked corner, so it lies along the
- * jaw of the drawing that was uploaded rather than on an idealised one, and it
- * is then carried up the side of the head toward the cranium.
+ * continues the skull. Each arm leaves the cranium tangentially and curves
+ * down to the chin, so circle and jaw read as one unbroken outline.
  *
  * @param chin The tip of the chin.
  * @param jawL The left jaw corner.
@@ -586,7 +622,19 @@ const buildJaw = (chin: Point, jawL: Point, jawR: Point, cranium: Cranium): Poin
     return [jawL, chin, jawR];
   }
 
-  return [jawArmEnd(chin, jawL, cranium), chin, jawArmEnd(chin, jawR, cranium)];
+  const leftStart = jawLeavesSkull(jawL, chin, cranium);
+  const rightStart = jawLeavesSkull(jawR, chin, cranium);
+
+  // A corner inside the skull has no tangent, so there is no smooth join to
+  // build. The plain V still reads, and it beats drawing half a head.
+  if (!(leftStart && rightStart)) {
+    return [jawL, chin, jawR];
+  }
+
+  return [
+    ...jawSweep(leftStart, jawL, chin),
+    ...jawSweep(rightStart, jawR, chin).toReversed().slice(1),
+  ];
 };
 
 /**

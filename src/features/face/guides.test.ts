@@ -46,21 +46,6 @@ const span = (points: Corner[] | undefined) =>
 const gap = (from: Corner | undefined, to: Corner | undefined) =>
   Math.hypot((from?.x ?? 0) - (to?.x ?? 0), (from?.y ?? 0) - (to?.y ?? 0));
 
-/**
- * How far a point sits off the infinite line through two others.
- *
- * @param from One point on the line.
- * @param to Another point on the line.
- * @param corner The point being checked against it.
- * @returns The perpendicular distance, zero when the point is on the line.
- */
-const strays = (from: Corner | undefined, to: Corner | undefined, corner: Corner | undefined) => {
-  const run = { x: (to?.x ?? 0) - (from?.x ?? 0), y: (to?.y ?? 0) - (from?.y ?? 0) };
-  const over = { x: (from?.x ?? 0) - (corner?.x ?? 0), y: (from?.y ?? 0) - (corner?.y ?? 0) };
-
-  return Math.abs(run.x * over.y - over.x * run.y) / Math.hypot(run.x, run.y);
-};
-
 /** Reference head shipped in `public/assets/images/reference-face.svg`. */
 const W = 400;
 const H = 520;
@@ -250,26 +235,38 @@ describe(buildFaceGuides, () => {
       expect(withBrow.lines.some((line) => line.kind === 'hairLine')).toBeTruthy();
     });
 
-    it('runs each jaw arm straight through the marked corner', () => {
-      const { jaw } = buildFaceGuides(sampleFace, ASPECT);
-      const { jaw: plain } = buildFaceGuides({ ...sampleFace, crownTop: undefined }, ASPECT);
+    it('starts and ends the jaw on the cranium circle', () => {
+      const { jaw, cranium } = buildFaceGuides(sampleFace, ASPECT);
+      const offCircle = (point: Corner | undefined) =>
+        Math.abs(gap(point, cranium?.center) - (cranium?.radius ?? 0));
 
-      // Exactly three points: one straight arm, the chin, one straight arm.
-      // Any extra vertex would be a bend, and a bend here drew a spike.
-      expect(jaw).toHaveLength(3);
-
-      // `plain` has no cranium, so its vertices are the marked corners
-      // projected into view-box space — the reference this arm must hit.
-      expect(strays(jaw.at(0), jaw.at(1), plain.at(0))).toBeCloseTo(0, 6);
-      expect(strays(jaw.at(1), jaw.at(2), plain.at(2))).toBeCloseTo(0, 6);
+      expect(offCircle(jaw.at(0))).toBeCloseTo(0, 6);
+      expect(offCircle(jaw.at(-1))).toBeCloseTo(0, 6);
     });
 
-    it('never pulls a jaw arm back short of its marked corner', () => {
-      const { jaw } = buildFaceGuides(sampleFace, ASPECT);
-      const { jaw: plain } = buildFaceGuides({ ...sampleFace, crownTop: undefined }, ASPECT);
+    it('leaves the cranium tangentially so skull and jaw read as one outline', () => {
+      const { jaw, cranium } = buildFaceGuides(sampleFace, ASPECT);
 
-      expect(gap(jaw.at(0), jaw.at(1))).toBeGreaterThanOrEqual(gap(plain.at(0), plain.at(1)));
-      expect(gap(jaw.at(2), jaw.at(1))).toBeGreaterThanOrEqual(gap(plain.at(2), plain.at(1)));
+      // Angle between the radius at the start point and the direction the
+      // curve sets off in. Ninety degrees means the curve continues the
+      // circle instead of cutting across it or creasing against it.
+      const leaving = (from: Corner | undefined, next: Corner | undefined) => {
+        const radius = {
+          x: (from?.x ?? 0) - (cranium?.center.x ?? 0),
+          y: (from?.y ?? 0) - (cranium?.center.y ?? 0),
+        };
+        const heads = { x: (next?.x ?? 0) - (from?.x ?? 0), y: (next?.y ?? 0) - (from?.y ?? 0) };
+        const cosine =
+          (radius.x * heads.x + radius.y * heads.y) /
+          (Math.hypot(radius.x, radius.y) * Math.hypot(heads.x, heads.y));
+
+        return (Math.acos(Math.min(1, Math.max(-1, cosine))) * 180) / Math.PI;
+      };
+
+      // One degree of slack: the measurement uses the first sampled chord,
+      // which leans a fraction off the true tangent at the start point.
+      expect(Math.abs(leaving(jaw.at(0), jaw.at(1)) - 90)).toBeLessThan(1);
+      expect(Math.abs(leaving(jaw.at(-1), jaw.at(-2)) - 90)).toBeLessThan(1);
     });
 
     it('falls back to a bare V when there is no cranium to attach to', () => {

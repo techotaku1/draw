@@ -95,22 +95,18 @@ export const FaceStudio = (props: {
             activeId={activeId}
             overlay={
               props.showGuides ? (
-                <>
-                  {/* The whole construction stays visible; the current step is
-                      the only part drawn at full strength. */}
-                  <FaceOverlay
-                    guides={guides}
-                    layers={ALL_FACE_LAYERS}
-                    aspect={props.aspect}
-                    className="pointer-events-none absolute inset-0 h-full w-full opacity-30"
-                  />
-                  <FaceOverlay
-                    guides={guides}
-                    layers={faceLayersForStep(stepIndex)}
-                    aspect={props.aspect}
-                    className="pointer-events-none absolute inset-0 h-full w-full"
-                  />
-                </>
+                /* Only what has been built so far. Each step already carries
+                   every earlier layer, so a second pass showing the finished
+                   construction underneath added nothing but the layers the
+                   artist has not reached yet — fourteen guides competing at
+                   once, where the point of the sequence is to show two or
+                   three at a time. */
+                <FaceOverlay
+                  guides={guides}
+                  layers={faceLayersForStep(stepIndex)}
+                  aspect={props.aspect}
+                  className="pointer-events-none absolute inset-0 h-full w-full"
+                />
               ) : null
             }
             photoOpacity={props.photoOpacity}

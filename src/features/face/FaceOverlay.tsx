@@ -14,6 +14,15 @@ const FIFTH_COLOR = '#0891b2';
  */
 const HAIRLINE = 0.009;
 
+// Three weights, so the drawing has a hierarchy instead of fourteen guides
+// shouting at once. The cranium and the jaw are the structure of the head and
+// carry the heaviest line; the horizontal divisions place the features
+// against it; the five-eye grid is a ruler, and a ruler should sit under the
+// drawing rather than on top of it.
+const STRUCTURE = 1.9;
+const DIVISION = 0.85;
+const RULER = 0.55;
+
 const toPath = (points: Point[]): string =>
   points.map((point, index) => `${index === 0 ? 'M' : 'L'}${point.x} ${point.y}`).join(' ');
 
@@ -86,7 +95,7 @@ export const FaceOverlay = (props: {
           fill={FACE_COLOR.cranium}
           fillOpacity={0.05}
           stroke={FACE_COLOR.cranium}
-          strokeWidth={stroke * 1.25}
+          strokeWidth={stroke * STRUCTURE}
         />
       )}
 
@@ -95,7 +104,7 @@ export const FaceOverlay = (props: {
           d={toPath(props.guides.jaw)}
           fill="none"
           stroke={FACE_COLOR.jaw}
-          strokeWidth={stroke * 1.25}
+          strokeWidth={stroke * STRUCTURE}
           strokeLinecap="round"
           strokeLinejoin="round"
         />
@@ -120,9 +129,9 @@ export const FaceOverlay = (props: {
               d={toPath(line.points)}
               fill="none"
               stroke={LINE_COLOR[line.kind]}
-              strokeWidth={line.kind === 'fifth' ? stroke * 0.8 : stroke}
+              strokeWidth={stroke * (line.kind === 'fifth' ? RULER : DIVISION)}
               strokeDasharray={line.kind === 'fifth' ? `${stroke * 4} ${stroke * 3}` : undefined}
-              strokeOpacity={line.kind === 'fifth' ? 0.75 : 0.95}
+              strokeOpacity={line.kind === 'fifth' ? 0.55 : 0.8}
             />
           ) : null,
         )}

@@ -32,13 +32,23 @@ const COLLINEAR_EPSILON = 1e-6;
 
 /**
  * Largest cranium the temples can justify, as a multiple of half their span.
- * A three-quarter view foreshortens the temples, so the ball is legitimately
- * wider than they are — but only so far. Past this the three points are
- * near-collinear and the circle through them runs away: dragging one temple
- * across the other took the radius from 199 to 641 and threw the centre out of
- * the face entirely.
+ *
+ * Turning a ball of radius `R` by an angle brings its temples `R * cos` apart
+ * while the crown stays `R` above their chord, so the circle through the three
+ * points is legitimately wider than the temples — by exactly
+ * `(1 / cos + cos) / 2`, which is 1 dead on, 1.06 at forty-five degrees and
+ * 1.25 at sixty. This cap is the value of that expression at sixty-two
+ * degrees, past which one temple is disappearing behind the nose and the
+ * construction has stopped being a front view of a head.
+ *
+ * Above it the crown was not read off the skull. Spiky hair puts it a quarter
+ * of a head higher than the bone, which on a measured frontal reference gave
+ * 1.46 — a circle 30% wider than the drawn head, with the jaw departing from
+ * its inflated sides. The far end of the same scale is the near-collinear
+ * runaway: dragging one temple across the other took the radius from 199 to
+ * 641 and threw the centre out of the face entirely.
  */
-const MAX_CRANIUM_SPREAD = 2.2;
+const MAX_CRANIUM_SPREAD = 1.3;
 
 // The circle through three points. The cranium is a ball seen in projection, so
 // its outline passes through the crown and both temples whatever way the head
@@ -123,10 +133,11 @@ const buildHeadBox = (marks: Marks): Point[] => {
  *
  * The circle through them follows a head that is turned or tilted, because a
  * ball in projection lands on its own outline. It is only trustworthy while
- * the points stay spread out: as they line up the circle diverges, so an
- * implausible radius falls back to a crown-anchored estimate sized by the
- * temples. That keeps a mis-dragged landmark looking wrong rather than
- * painting an arc across the whole picture.
+ * the crown stands at a believable height over the temple chord: the further
+ * it rises the wider that circle grows, without bound, so a radius the temples
+ * cannot justify falls back to a crown-anchored estimate sized by the temples.
+ * That keeps a crown read off a character's hair, or a mis-dragged landmark,
+ * looking wrong rather than painting an arc across the whole picture.
  *
  * @param crownTop Top of the skull.
  * @param templeL One temple.
@@ -298,19 +309,111 @@ const buildMetrics = (marks: Marks, craniumRadius: number | null): FaceMetrics =
   };
 };
 
-// On a three-quarter view the axis bows toward the side the head turns to, so
-// it is sampled through the eye midpoint rather than drawn straight.
-const buildAxis = (
-  crownTop: Point | undefined,
-  chin: Point | undefined,
-  eyeL: Point | undefined,
-  eyeR: Point | undefined,
-): Point[] => {
+/** Landmark pairs whose midpoints all sit on the line of symmetry. */
+const SYMMETRIC_PAIRS = [
+  ['templeL', 'templeR'],
+  ['eyeL', 'eyeR'],
+  ['jawL', 'jawR'],
+] as const;
+
+/** Value of `t * (1 - t)` at the middle of the axis, where the bow is largest. */
+const BOW_PEAK = 0.25;
+
+const AXIS_SAMPLES = 18;
+
+/**
+ * How far the line of symmetry bows away from the straight crown-to-chin
+ * chord, as the amplitude of a single `t * (1 - t)` arch.
+ *
+ * A turned head pushes every paired landmark the same way, so the bow is read
+ * from the temples, the eyes and the jaw corners together instead of from the
+ * eyes alone. A pair placed a few pixels off then moves the axis a third as far
+ * as it used to, which is what stops a dead-on face from being drawn with a
+ * crooked midline — the complaint that sent us here.
+ *
+ * One parameter is enough because the axis is pinned at both ends: it has to
+ * start at the crown and finish at the chin, so only its sag is free.
+ *
+ * @param marks Landmarks in SVG user-space.
+ * @returns The bow amplitude, signed the same way as `signedDistanceToLine`.
+ */
+const measureBow = (marks: Marks): number => {
+  const { crownTop, chin } = marks;
+
+  if (!(crownTop && chin)) {
+    return 0;
+  }
+
+  let weighted = 0;
+  let weights = 0;
+
+  for (const [left, right] of SYMMETRIC_PAIRS) {
+    const a = marks[left];
+    const b = marks[right];
+
+    if (!(a && b)) {
+      continue;
+    }
+
+    const mid = midpoint(a, b);
+    const shape = (() => {
+      const t = positionAlong(mid, crownTop, chin);
+
+      return t * (1 - t);
+    })();
+
+    if (shape <= 0) {
+      continue;
+    }
+
+    weighted += shape * signedDistanceToLine(mid, crownTop, chin);
+    weights += shape * shape;
+  }
+
+  return weights === 0 ? 0 : weighted / weights;
+};
+
+/**
+ * The line of symmetry, from the crown to the chin.
+ *
+ * Straight on a frontal face and bowed on a three-quarter view, with the bow
+ * fitted to every paired landmark at once rather than threaded through the eye
+ * midpoint. Forcing the curve through one pair meant any error in that pair
+ * became a visible lean in the face's own axis.
+ *
+ * @param marks Landmarks in SVG user-space.
+ * @returns The sampled axis, or an empty array without a head axis.
+ */
+const buildAxis = (marks: Marks): Point[] => {
+  const { crownTop, chin } = marks;
+
   if (!(crownTop && chin)) {
     return [];
   }
 
-  return eyeL && eyeR ? arc(crownTop, midpoint(eyeL, eyeR), chin) : [crownTop, chin];
+  const dx = chin.x - crownTop.x;
+  const dy = chin.y - crownTop.y;
+  const length = Math.hypot(dx, dy);
+
+  if (length === 0) {
+    return [];
+  }
+
+  const normal = { x: dy / length, y: -dx / length };
+  const amount = measureBow(marks);
+  const out: Point[] = [];
+
+  for (let i = 0; i <= AXIS_SAMPLES; i += 1) {
+    const t = i / AXIS_SAMPLES;
+    const sag = amount * t * (1 - t);
+
+    out.push({
+      x: crownTop.x + dx * t + normal.x * sag,
+      y: crownTop.y + dy * t + normal.y * sag,
+    });
+  }
+
+  return out;
 };
 
 type Cranium = { center: Point; radius: number } | null;
@@ -344,7 +447,8 @@ const wrapAcrossCranium = (
 
   const mid = midpoint(from, to);
   // cos of the latitude: 1 level with the centre of the ball, 0 at its poles.
-  const offset = (mid.y - cranium.center.y) / cranium.radius;
+  const offset =
+    ((mid.x - cranium.center.x) * down.x + (mid.y - cranium.center.y) * down.y) / cranium.radius;
   const latitude = Math.sqrt(Math.max(0, 1 - offset * offset));
   const sag = (distance(from, to) / 2) * latitude * WRAP_DEPTH * turn;
 
@@ -362,13 +466,13 @@ const wrapAcrossCranium = (
  * @returns A multiplier for the wrap depth.
  */
 const measureTurn = (marks: Marks, cranium: Cranium): number => {
-  const { crownTop, chin, eyeL, eyeR } = marks;
-
-  if (!(crownTop && chin && eyeL && eyeR && cranium) || cranium.radius <= 0) {
+  if (!cranium || cranium.radius <= 0) {
     return WRAP_FLOOR;
   }
 
-  const off = Math.abs(signedDistanceToLine(midpoint(eyeL, eyeR), crownTop, chin));
+  // The same fitted bow the axis is drawn with, taken at its deepest point, so
+  // the wrap and the midline can never disagree about which way the head faces.
+  const off = Math.abs(measureBow(marks)) * BOW_PEAK;
   const turn = Math.min(1, off / cranium.radius / FULL_TURN);
 
   return WRAP_FLOOR + (1 - WRAP_FLOOR) * turn;
@@ -530,161 +634,179 @@ const buildLines = (marks: Marks, overshoot: number, cranium: Cranium): GuideLin
 };
 
 /**
- * Where the jaw leaves the skull: the point at which a line drawn from the
- * marked corner grazes the cranium circle, taking the tangent on the far side
- * from the chin so the jaw climbs around the head rather than cutting under it.
+ * Samples one cubic Hermite span: two endpoints and the direction the curve
+ * takes at each of them.
  *
- * Taking the tangent from the CORNER rather than from the chin is what lets
- * the jaw curve leave the circle smoothly. The segment corner-to-tangency is
- * perpendicular to the radius there, so a curve that starts at the tangency
- * point and heads toward the corner continues the circle without a crease:
- * skull and jaw read as one outline, the way they are drawn by hand.
+ * Hermite rather than Bézier because what this jaw has to honour is tangents,
+ * not control points — leave the skull straight down, arrive at the chin
+ * straight across — and a Hermite span takes those directions as its input
+ * instead of making us solve for handles that produce them.
  *
- * @param corner The marked jaw corner.
- * @param chin The tip of the chin, used to pick which of the two tangents.
- * @param cranium The fitted cranium circle.
- * @returns The tangency point, or null when the corner lies inside the circle.
+ * @param from Where the span starts.
+ * @param fromTangent Direction and strength of departure at `from`.
+ * @param to Where the span ends.
+ * @param toTangent Direction and strength of arrival at `to`.
+ * @param samples How many segments to cut the span into.
+ * @returns The sampled polyline, both endpoints included.
  */
-const jawLeavesSkull = (
-  corner: Point,
-  chin: Point,
-  cranium: NonNullable<Cranium>,
-): Point | null => {
-  const { center, radius } = cranium;
-  const reach = distance(corner, center);
-
-  if (reach <= radius || radius <= 0) {
-    return null;
-  }
-
-  const toCorner = Math.atan2(corner.y - center.y, corner.x - center.x);
-  const spread = Math.acos(radius / reach);
-
-  const [ahead, behind] = [toCorner + spread, toCorner - spread].map((angle) => ({
-    x: center.x + Math.cos(angle) * radius,
-    y: center.y + Math.sin(angle) * radius,
-  }));
-
-  if (!(ahead && behind)) {
-    return null;
-  }
-
-  // Both tangents are smooth; the one further from the chin is the one that
-  // climbs the side of the head instead of doubling back underneath it.
-  return distance(ahead, chin) > distance(behind, chin) ? ahead : behind;
-};
-
-/**
- * Samples one quadratic Bézier, endpoints included.
- *
- * @param from Where the curve starts.
- * @param control The point that bends it.
- * @param to Where the curve ends.
- * @param samples How many segments to cut it into.
- * @returns The sampled polyline, start and end included.
- */
-const quadratic = (from: Point, control: Point, to: Point, samples: number): Point[] => {
+const hermite = (
+  from: Point,
+  fromTangent: Point,
+  to: Point,
+  toTangent: Point,
+  samples: number,
+): Point[] => {
   const out: Point[] = [];
 
   for (let i = 0; i <= samples; i += 1) {
     const t = i / samples;
-    const inv = 1 - t;
+    const square = t * t;
+    const cube = square * t;
+    const startWeight = 2 * cube - 3 * square + 1;
+    const startSlope = cube - 2 * square + t;
+    const endWeight = 3 * square - 2 * cube;
+    const endSlope = cube - square;
 
     out.push({
-      x: inv * inv * from.x + 2 * inv * t * control.x + t * t * to.x,
-      y: inv * inv * from.y + 2 * inv * t * control.y + t * t * to.y,
+      x:
+        startWeight * from.x +
+        startSlope * fromTangent.x +
+        endWeight * to.x +
+        endSlope * toTangent.x,
+      y:
+        startWeight * from.y +
+        startSlope * fromTangent.y +
+        endWeight * to.y +
+        endSlope * toTangent.y,
     });
   }
 
   return out;
 };
 
-/** How far past the corner the second span reaches for its control point. */
-const JAW_SLACK = 0.45;
+/**
+ * Segments per span. The arrival at the chin is exactly flat by construction,
+ * but a coarse polyline still shows a kink there because each drawn chord is a
+ * secant of a curve that is turning hard: at 14 the two arms met at 12 degrees,
+ * at 24 they meet at 6.
+ */
+const JAW_SAMPLES = 24;
 
 /**
- * One jaw arm: from the cranium, through the marked corner, down to the chin.
+ * How strongly the arm is already travelling sideways when it reaches the
+ * chin, as a multiple of the corner-to-chin distance. It sets how round the
+ * bottom of the face is: at zero the two arms meet in a spike, and large
+ * values spread the turn so far up the jaw that the chin reads as broad.
+ * Measured across four corner placements, 1.2 brings the meeting angle under
+ * six degrees without the curve ever dipping below the marked chin.
+ */
+const CHIN_ROUNDING = 1.2;
+
+/**
+ * One side of the jaw: off the cranium, through the marked corner, into the
+ * chin.
  *
- * Two spans rather than one, because a single quadratic cannot satisfy both
- * of the things this line has to do. Its control point only pulls the curve
- * toward the corner, so the jaw came out narrower than the one that was
- * marked and tapered to a point below the face. Splitting the arm at the
- * corner makes the corner an endpoint, which the curve must pass through.
+ * Three conditions make this the line an artist draws, and all three are
+ * tangent conditions, which is why the span is Hermite:
  *
- * The first span starts at the tangency point and takes its control from the
- * corner projected onto the tangent line, so it leaves the circle without a
- * crease. The second span reuses the direction the first one arrives with, so
- * the two meet smoothly: the whole arm still reads as one stroke.
+ * 1. It leaves the widest point of the cranium heading straight down the head
+ *    axis. The circle is also vertical there, so skull and jaw are one
+ *    unbroken outline with no crease at the join. This is also what fixed the
+ *    real defect: the old code looked for a tangent line from the corner to
+ *    the circle and gave up when there was none — which is every frontal face,
+ *    because a jaw is narrower than the skull above it. The widest point
+ *    always exists, so the curve is always built.
+ * 2. It passes exactly through the marked corner, which is the whole point of
+ *    marking it.
+ * 3. It arrives at the chin moving straight across the face. Both arms do, so
+ *    they meet in a round chin instead of the V that was being drawn.
  *
- * @param start The tangency point on the cranium.
  * @param corner The marked jaw corner, which the arm passes through.
  * @param chin The tip of the chin.
  * @param cranium The fitted cranium circle.
+ * @param down Unit vector from the crown toward the chin.
  * @returns The sampled arm, from the cranium down to the chin.
  */
-const jawSweep = (
-  start: Point,
+const jawArm = (
   corner: Point,
   chin: Point,
   cranium: NonNullable<Cranium>,
+  down: Point,
 ): Point[] => {
-  const outward = unitVector(cranium.center, start);
-  const reach = distance(start, corner);
+  const across = { x: -down.y, y: down.x };
+  const sideways =
+    (corner.x - cranium.center.x) * across.x + (corner.y - cranium.center.y) * across.y;
+  const sign = sideways >= 0 ? 1 : -1;
+  const outward = { x: across.x * sign, y: across.y * sign };
 
-  if (!outward || reach <= 0) {
-    return [start, corner, chin];
+  const departure = {
+    x: cranium.center.x + outward.x * cranium.radius,
+    y: cranium.center.y + outward.y * cranium.radius,
+  };
+
+  // The corner is a waypoint, not a corner in the geometric sense: both spans
+  // pass through it heading the same way, so the arm reads as one stroke.
+  //
+  // That shared direction is scaled by each span's own chord rather than used
+  // at one length for both. The span above the corner is short and the one
+  // below it is long, and feeding the long span's tangent into the short one
+  // is the classic Catmull-Rom overshoot: it bowed the jaw sideways out of the
+  // skull by four units before the chord scaling, and by nothing after it.
+  const waist = unitVector(departure, chin);
+
+  if (!waist) {
+    return [departure, corner, chin];
   }
 
-  // The tangent at `start` is perpendicular to the radius there. Project the
-  // corner onto that line to get a control point that both lies on the
-  // tangent and sits alongside the corner.
-  const along = { x: -outward.y, y: outward.x };
-  const toCorner = { x: corner.x - start.x, y: corner.y - start.y };
-  const run = toCorner.x * along.x + toCorner.y * along.y;
-  const hinge = { x: start.x + along.x * run, y: start.y + along.y * run };
+  const upper = distance(departure, corner);
+  const lower = distance(corner, chin);
+  const flatten = lower * CHIN_ROUNDING;
 
-  const arriving = unitVector(hinge, corner);
-
-  if (!arriving) {
-    return [start, corner, chin];
-  }
-
-  const slack = distance(corner, chin) * JAW_SLACK;
-  const leaving = { x: corner.x + arriving.x * slack, y: corner.y + arriving.y * slack };
-
-  return [...quadratic(start, hinge, corner, 10), ...quadratic(corner, leaving, chin, 10).slice(1)];
+  return [
+    ...hermite(
+      departure,
+      { x: down.x * upper, y: down.y * upper },
+      corner,
+      { x: waist.x * upper, y: waist.y * upper },
+      JAW_SAMPLES,
+    ),
+    ...hermite(
+      corner,
+      { x: waist.x * lower, y: waist.y * lower },
+      chin,
+      { x: -outward.x * flatten, y: -outward.y * flatten },
+      JAW_SAMPLES,
+    ).slice(1),
+  ];
 };
 
 /**
- * The V of the jaw, carried up until each arm lands on the cranium circle.
+ * The jaw, carried up until each arm meets the cranium circle.
  *
  * A manga head is not a circle with a separate V floating under it: the jaw
- * continues the skull. Each arm leaves the cranium tangentially and curves
- * down to the chin, so circle and jaw read as one unbroken outline.
+ * continues the skull, and the chin is round.
  *
  * @param chin The tip of the chin.
  * @param jawL The left jaw corner.
  * @param jawR The right jaw corner.
  * @param cranium The fitted cranium circle, when there is one.
+ * @param down Unit vector from the crown toward the chin, when there is one.
  * @returns The jaw polyline, left to right.
  */
-const buildJaw = (chin: Point, jawL: Point, jawR: Point, cranium: Cranium): Point[] => {
-  if (!cranium) {
-    return [jawL, chin, jawR];
-  }
-
-  const leftStart = jawLeavesSkull(jawL, chin, cranium);
-  const rightStart = jawLeavesSkull(jawR, chin, cranium);
-
-  // A corner inside the skull has no tangent, so there is no smooth join to
-  // build. The plain V still reads, and it beats drawing half a head.
-  if (!(leftStart && rightStart)) {
+const buildJaw = (
+  chin: Point,
+  jawL: Point,
+  jawR: Point,
+  cranium: Cranium,
+  down: Point | null,
+): Point[] => {
+  if (!(cranium && down) || cranium.radius <= 0) {
     return [jawL, chin, jawR];
   }
 
   return [
-    ...jawSweep(leftStart, jawL, chin, cranium),
-    ...jawSweep(rightStart, jawR, chin, cranium).toReversed().slice(1),
+    ...jawArm(jawL, chin, cranium, down),
+    ...jawArm(jawR, chin, cranium, down).toReversed().slice(1),
   ];
 };
 
@@ -702,19 +824,21 @@ export const buildFaceGuides = (marks: Marks, aspect: number): FaceGuides => {
   const p = toViewBox(marks, safeAspect, FACE_IDS);
   const { crownTop, chin, templeL, templeR, eyeL, eyeR, jawL, jawR, noseTip } = p;
 
+  const width = templeL && templeR ? distance(templeL, templeR) : 0;
+
   let cranium: FaceGuides['cranium'] = null;
 
   if (templeL && templeR && crownTop) {
     cranium = fitCranium(crownTop, templeL, templeR);
   }
 
-  const width = templeL && templeR ? distance(templeL, templeR) : 0;
+  const down = crownTop && chin ? unitVector(crownTop, chin) : null;
 
   return {
     cranium,
     headBox: buildHeadBox(p),
-    jaw: jawL && chin && jawR ? buildJaw(chin, jawL, jawR, cranium) : [],
-    axis: buildAxis(crownTop, chin, eyeL, eyeR),
+    jaw: jawL && chin && jawR ? buildJaw(chin, jawL, jawR, cranium, down) : [],
+    axis: buildAxis(p),
     noseArc: eyeL && eyeR && noseTip ? arc(eyeL, noseTip, eyeR) : [],
     lines: buildLines(p, width * LINE_OVERSHOOT, cranium),
     metrics: buildMetrics(p, cranium?.radius ?? null),

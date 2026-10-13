@@ -2,8 +2,12 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { GoogleGenAI } from '@google/genai';
 import { Env } from './Env';
 
-/** Used whenever `GEMINI_MODEL` is unset. */
-const DEFAULT_MODEL = 'gemini-3.6-flash';
+/**
+ * Used whenever `GEMINI_MODEL` is unset. Pro while landmark accuracy is being
+ * diagnosed — the jaw corners are the point under test. Going back means
+ * putting `gemini-3.6-flash` here again, nothing else.
+ */
+const DEFAULT_MODEL = 'gemini-3.1-pro-preview';
 
 /**
  * Model used by the AI features. No caller depends on the id, so swapping it
@@ -20,11 +24,13 @@ const DEFAULT_MODEL = 'gemini-3.6-flash';
 export const GEMINI_MODEL = Env.GEMINI_MODEL ?? DEFAULT_MODEL;
 
 /**
- * Used when the primary is saturated or its allowance is spent. It is faster
- * but measurably less precise — 1.46 % mean landmark error against 0.80 % — and
- * it carries its own daily quota, so it doubles the budget as a side effect.
+ * Used when the primary is saturated or its allowance is spent. It carries its
+ * own daily quota, so it doubles the budget as a side effect. It is the second
+ * most precise model available rather than the fastest: falling back to
+ * `gemini-3.1-flash-lite` (1.46 % mean landmark error against 0.80 %) would
+ * undo the reason for running a stronger primary in the first place.
  */
-export const GEMINI_FALLBACK_MODEL = 'gemini-3.1-flash-lite';
+export const GEMINI_FALLBACK_MODEL = 'gemini-3.6-flash';
 
 /** Statuses that mean "the model is busy" rather than "the request is wrong". */
 const OVERLOAD_STATUSES = new Set([429, 503]);

@@ -44,7 +44,7 @@ const BODY_DESCRIPTIONS: Record<string, string> = {
 
 const FACE_DESCRIPTIONS: Record<string, string> = {
   crownTop:
-    'the very top of the BONE of the skull, on the symmetry axis of the face. Spiky or voluminous hair rises well above it: do not follow the hair silhouette, estimate where the cranium itself ends underneath',
+    'the top of the BONE of the skull, on the symmetry axis of the face. The cranium is a ball as wide as the skull, so crownTop stands above the line joining templeL and templeR by about HALF the distance from templeL to templeR. Read that ball off the parts the hair does not cover — the eyes, the brow, the ears, the width of the face at cheek level — and put the crown where its top would be. Spiky or voluminous hair rises far above it, with gaps and points the skull does not have, so the crown sits well inside that silhouette',
   templeL:
     'the widest point of the SKULL on the LEFT side of the image, at temple height, roughly level with the top of the ears. This is bone width, not hair width: on a character with large hair the skull is much narrower than the silhouette',
   templeR:
@@ -54,7 +54,7 @@ const FACE_DESCRIPTIONS: Record<string, string> = {
   eyeR: 'the centre of the pupil of the eye on the RIGHT side of the image',
   jawL: 'the angle of the jaw on the LEFT side of the image. Trace the OUTER OUTLINE OF THE FACE downward from the temple: it runs almost straight down past the cheek, then turns inward toward the chin. Put the landmark exactly at that turn. It lies ON that outline, never inside the cheek, and it is the outline of the SKIN that counts, not the outline of the hair. It sits roughly straight below the outer corner of eyeL, at a height between the eye line and the tip of the nose. It is nearly as far from the centre of the face as templeL is: the jaw is only slightly narrower than the skull, so a point near the middle of the face is badly wrong',
   jawR: 'the angle of the jaw on the RIGHT side of the image. Trace the OUTER OUTLINE OF THE FACE downward from the temple: it runs almost straight down past the cheek, then turns inward toward the chin. Put the landmark exactly at that turn. It lies ON that outline, never inside the cheek, and it is the outline of the SKIN that counts, not the outline of the hair. It sits roughly straight below the outer corner of eyeR, at a height between the eye line and the tip of the nose. It is nearly as far from the centre of the face as templeR is, and it must mirror jawL: the same height and the same distance from the midline, unless the head is clearly turned',
-  chin: 'the lowest point of the OUTLINE OF THE FACE, where the two sides of the jaw meet at the bottom. Put it exactly on that outline, not a little above it inside the face and not below it: it is the last pixel of skin before the background or the neck begins. It is the bottom of the FACE, never the bottom of the head or of the hair, so ignore hair, a collar, a scarf or a shadow hanging below it. It sits on the symmetry axis, lined up vertically with brow, noseTip and mouth, and centred between jawL and jawR. The gap from mouth down to chin is roughly twice the gap from noseTip down to mouth',
+  chin: 'the lowest point of the OUTLINE OF THE FACE, where the two sides of the jaw meet at the bottom. Put it exactly on that outline, not a little above it inside the face and not below it: it is the last pixel of skin before the background or the neck begins. It is the bottom of the FACE, never the bottom of the head or of the hair, so ignore hair, a collar, a scarf or a shadow hanging below it. It sits on the symmetry axis, lined up vertically with brow, noseTip and mouth, and centred between jawL and jawR. On a realistic face the gap from mouth down to chin is roughly twice the gap from noseTip down to mouth, but on a stylised one the lower face is short and that gap is SMALLER than the nose-to-mouth gap, so the chin sits just below the mouth. Measured on a manga reference the two gaps were 80 and 25 pixels: assuming the realistic ratio there dropped the landmark about a tenth of the head height too low, into the shading under the jaw',
   noseTip: 'the tip of the nose, on the symmetry axis of the face, between brow and mouth',
   mouth:
     'the centre of the mouth, where both lips meet, on the symmetry axis of the face, below noseTip and above chin',
@@ -138,21 +138,53 @@ const buildResponseSchema = (target: Target) => {
 // where the landmarks go — the drawing decides that — but a stylised face
 // stays close to them, so they catch a point that has drifted somewhere
 // impossible. Face only: a body has its own proportions.
+// The five-eye rule is a LIFE-DRAWING rule, and handing it to the model on a
+// stylised face is actively harmful. Measured on an anime reference: the face
+// ran 3.4 eye-widths across, not five, so a model ruling off five pushed the
+// temples outward by half again and drew a cranium 1.26 times wider than the
+// head. Both rulers are given, with the choice made first and stated, because
+// the proportions of the two styles disagree about the width of the skull and
+// the height of the eye line — the two things the whole construction hangs on.
+const FACE_STYLE = [
+  'FIRST decide which kind of face this is, because the proportions below differ',
+  'and using the wrong set is the main way this goes wrong.',
+  'STYLISED (anime, manga, cartoon, comics): enlarged cranium, very large eyes,',
+  'small nose, short lower face. REALISTIC (photograph, life drawing, realistic',
+  'painting): human proportions.',
+  'When in doubt, the drawing is STYLISED — almost every reference used here is.',
+].join(' ');
+
 const FACE_PROPORTIONS = [
-  'Use the standard proportions of a drawn head to check your answer, and correct',
-  'any landmark that disagrees with all the others:',
-  'the eye line sits near the vertical middle between crownTop and chin;',
+  FACE_STYLE,
+  'Then check every landmark against the proportions of that style and correct any',
+  'one that disagrees with all the others.',
+  'Shared by both styles:',
   'the brow sits near the lower edge of the skull, above the eye line;',
-  'noseTip sits near the middle between the eye line and chin;',
-  'mouth sits between noseTip and chin, closer to noseTip than to chin;',
-  'the gap between eyeL and eyeR is about the width of one eye, so the distance',
-  'from eyeL to eyeR is two eye-widths;',
-  'the face is about FIVE eye-widths across, which makes templeL and templeR each',
-  'about two and a half eye-widths out from the midline — use that as a ruler;',
+  'mouth sits between noseTip and chin;',
+  'the gap between eyeL and eyeR is about the width of one eye;',
   'the distance from jawL to jawR is most of the distance from templeL to templeR,',
   'never a small fraction of it, because the jaw hangs just inside the widest part',
   'of the skull rather than near the middle of the face;',
+  'the cranium is a ball, so crownTop stands above the line joining templeL and',
+  'templeR by about HALF the distance from templeL to templeR — a turned head',
+  'foreshortens that span and allows somewhat more, but never twice as much, which',
+  'means crownTop was taken off the hair and draws a skull wider than the head;',
   'and the head is taller than it is wide.',
+  'If STYLISED:',
+  'the eye line sits about three fifths of the way down from crownTop to chin, well',
+  'BELOW the middle, because the skull above it is enlarged;',
+  'the face is only about THREE eye-widths across, so templeL and templeR each sit',
+  'about ONE AND A HALF eye-widths out from the midline — never two and a half,',
+  'which would draw a skull wider than the head;',
+  'and noseTip sits low, about two thirds of the way from the eye line down to chin,',
+  'leaving a short chin below the mouth.',
+  'If REALISTIC:',
+  'the eye line sits near the vertical middle between crownTop and chin;',
+  'the face is about five eye-widths across, so templeL and templeR each sit about',
+  'two and a half eye-widths out from the midline;',
+  'noseTip sits near the middle between the eye line and chin;',
+  'and the mouth sits closer to noseTip than to chin, the gap down to the chin being',
+  'about twice the gap up from the nose.',
 ].join(' ');
 
 const buildPrompt = (target: Target): string =>

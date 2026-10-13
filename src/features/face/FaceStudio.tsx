@@ -81,6 +81,22 @@ export const FaceStudio = (props: {
 
   const activeLabel = activeId ? t(`point_${activeId}`) : null;
 
+  // "Next point" is a lie once that landmark already has a position. The
+  // active landmark starts at the first in the sequence and stays there until
+  // the artist picks another, so after a detection fills all eleven the bar
+  // was still inviting the crown to be placed while the tab beside it read
+  // 11/11. A click there moves the point rather than adding one, so the bar
+  // says which one it would move.
+  const statusLabel = (() => {
+    if (!(activeId && activeLabel)) {
+      return t('all_points_done');
+    }
+
+    return props.marks[activeId]
+      ? t('editing_point', { name: activeLabel })
+      : t('next_point', { name: activeLabel });
+  })();
+
   return (
     <StudioLayout
       brand={t('brand')}
@@ -130,13 +146,11 @@ export const FaceStudio = (props: {
       }
       statusBar={
         <>
-          <p className="text-chalk">
-            {activeLabel ? t('next_point', { name: activeLabel }) : t('all_points_done')}
-          </p>
+          <p className="min-w-0 truncate text-chalk">{statusLabel}</p>
           {props.viewControls}
           <button
             type="button"
-            className={`${BUTTON} ml-auto`}
+            className={`${BUTTON} ml-auto shrink-0`}
             onClick={() => {
               props.onMarksChange({});
               setSelectedId(FACE_SEQUENCE[0]?.id ?? null);

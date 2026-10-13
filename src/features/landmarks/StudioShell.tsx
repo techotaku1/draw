@@ -251,14 +251,14 @@ export const StudioShell = (props: { initialMode: StudioMode }) => {
   // setting is never worth hunting for in two places.
   const viewControls = (
     <>
-      <label className="flex items-center gap-2 text-chalk-dim">
+      <label className="flex shrink-0 items-center gap-2 text-chalk-dim">
         {t('photo_opacity')}
         <input
           type="range"
           min={0}
           max={1}
           step={0.05}
-          className="w-28"
+          className="w-24"
           value={photoOpacity}
           onChange={(event) => {
             setPhotoOpacity(Number(event.target.value));
@@ -267,7 +267,7 @@ export const StudioShell = (props: { initialMode: StudioMode }) => {
         <span className="w-9 text-chalk tabular-nums">{Math.round(photoOpacity * 100)}%</span>
       </label>
 
-      <label className="flex items-center gap-2 text-chalk-dim">
+      <label className="flex shrink-0 items-center gap-2 text-chalk-dim">
         <input
           type="checkbox"
           checked={showGuides}
@@ -278,7 +278,7 @@ export const StudioShell = (props: { initialMode: StudioMode }) => {
         {t('show_guides')}
       </label>
 
-      <label className="flex items-center gap-2 text-chalk-dim">
+      <label className="flex shrink-0 items-center gap-2 text-chalk-dim">
         <input
           type="checkbox"
           checked={showMarkers}

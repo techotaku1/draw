@@ -37,7 +37,14 @@ export const StudioLayout = (props: {
         <main className="flex min-h-0 flex-1 flex-col">
           <div className="flex min-h-0 flex-1 items-center justify-center p-4">{props.canvas}</div>
 
-          <div className="flex shrink-0 flex-wrap items-center gap-x-6 gap-y-2 border-t border-graphite-700 px-4 py-2.5 text-[13px]">
+          {/* One row on a desktop, whatever it costs the readout. The strip
+              carries a state line, the view controls and a reset; letting it
+              wrap sent the reset button to a second row on its own, which read
+              as a broken layout rather than as a strip. Only the state line
+              may shrink, so the controls keep their size and the text
+              truncates instead. Below `lg` the page scrolls anyway, so there
+              it is allowed to wrap. */}
+          <div className="flex shrink-0 flex-wrap items-center gap-x-6 gap-y-2 border-t border-graphite-700 px-4 py-2.5 text-[13px] lg:flex-nowrap">
             {props.statusBar}
           </div>
         </main>

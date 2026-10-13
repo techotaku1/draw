@@ -168,6 +168,22 @@ export const SkeletonStudio = (props: {
 
   const nextJointLabel = activeJointId ? t(`joint_${activeJointId}`) : null;
 
+  // "Next point" is a lie once that joint already has a position. The active
+  // joint starts at the first in the sequence and stays there until the artist
+  // picks another, so after a detection fills every joint the bar was still
+  // inviting the first one to be placed while the tab beside it read 17/17. A
+  // click there moves the joint rather than adding one, so the bar says which
+  // one it would move.
+  const statusLabel = (() => {
+    if (!(activeJointId && nextJointLabel)) {
+      return t('all_points_done');
+    }
+
+    return props.marks[activeJointId]
+      ? t('editing_point', { name: nextJointLabel })
+      : t('next_point', { name: nextJointLabel });
+  })();
+
   return (
     <StudioLayout
       brand={t('brand')}
@@ -215,13 +231,11 @@ export const SkeletonStudio = (props: {
       }
       statusBar={
         <>
-          <p className="text-chalk">
-            {nextJointLabel ? t('next_point', { name: nextJointLabel }) : t('all_points_done')}
-          </p>
+          <p className="min-w-0 truncate text-chalk">{statusLabel}</p>
           {props.viewControls}
           <button
             type="button"
-            className={`${BUTTON} ml-auto`}
+            className={`${BUTTON} ml-auto shrink-0`}
             onClick={() => {
               props.onMarksChange({});
               setSelectedJointId(JOINT_SEQUENCE[0]?.id ?? null);

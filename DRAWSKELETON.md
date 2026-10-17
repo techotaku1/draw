@@ -41,7 +41,7 @@ change a control's look once for the whole tool.
 | Mode | What you mark | What you get |
 | --- | --- | --- |
 | Body | 17 landmarks | Line of action, blocking-in, axes, wireframe, joints |
-| Face | 10 landmarks | Cranium circle, V of the jaw, symmetry axis, eye line, alignment verticals |
+| Face | 10 landmarks | Cranium circle, cheek and jaw lines, symmetry axis, horizontal divisions, alignment verticals |
 
 `StudioShell` owns the reference image, the active mode and the AI detection;
 the two studios own their own geometry, panels and teaching steps. Both routes
@@ -61,8 +61,10 @@ Taken from the anime guide, whose rule contradicts the "draw an oval" advice you
 see elsewhere:
 
 - **The cranium is a circle, not an oval.** Everything else hangs off it.
-- **The jaw is a V** dropped from the sides of that circle to the chin. Longer
-  and more angular reads adult and masculine; shorter and rounder reads young.
+- **The cheek lines hang off the circle.** Each leaves the skull at its temple,
+  level with the top of the ear, runs straight down to the jaw corner and turns
+  into a short flat chin. Longer and more angular reads adult and masculine;
+  shorter and rounder reads young.
 - **The eye line sits in the lower part of the cranium circle**, not halfway
   down the face. That is what leaves the big forehead and short chin the style is
   built on. Crossed with the symmetry axis it divides the face in 4.
@@ -82,18 +84,29 @@ tilted, so the fit follows a rolled head; the previous version took its width
 from the temples and its height from the crown, and those two anchors part
 company as soon as the head is not upright.
 
-### The horizontals wrap
+### Drawn after a manga construction sheet
 
-The eye and mouth lines are arcs, not chords: a guide level with the middle of
-the ball bows most and one near the crown flattens out, which is how a latitude
-line behaves on a sphere. The depth scales with how far the face has turned,
-measured as the eye midpoint's drift off the crown-to-chin chord — the same
-signal the symmetry axis already bows with. A dead-on face keeps its guides
-nearly straight; a three-quarter view curves them about four times as much.
+The guides follow a front / profile / three-quarter construction sheet of the
+kind manga tutorials teach, rather than a Loomis head:
 
-The turn is a proxy, not a measurement. Ten landmarks cannot separate a head
-tilted forward from a face that is simply built long, so `WRAP_DEPTH` is tuned
-to read correctly rather than derived from a recovered head rotation.
+- **The jaw is straight strokes with real corners.** The cheek starts on the
+  circle at the temple (pulled onto the circle along its radius when the fit had
+  to discard the crown, and never above the circle's widest point), runs to the
+  marked jaw corner, then to a flat chin about a tenth as wide as the jaw. The
+  Hermite curve it replaced left the circle at its equator and bowed into a U
+  outside the drawn cheeks, so it traced neither the skull nor the face.
+- **The horizontals are straight and cross the whole head.** Every division is
+  one stroke through its landmark, parallel to the eyes, centred on the cranium
+  and running a third of a radius past it on each side. They used to be short
+  arcs wrapped around the ball; the sheet rules them flat in all three views.
+- **The hairline sits halfway from the top of the skull to the circle's
+  centre**, which is where all three views of the sheet put it, so it needs the
+  cranium rather than the brow.
+- **The symmetry axis runs a little past the crown and the chin.**
+
+The body studio blocks in the same head: a circle touching `headTop` with the
+cheek lines and flat chin hung off it, in proportions read off the sheet's front
+view, instead of an egg from crown to chin.
 
 ## How it works
 
@@ -103,7 +116,7 @@ every derived shape is computed from those points — no model, no inference.
 | Step | What it adds | Why it comes at this point |
 | --- | --- | --- |
 | 1. Line of action | A Catmull-Rom curve through head → sternum → pelvis → feet | Gesture before structure |
-| 2. Blocking-in | Head oval, ribcage egg, pelvis box | Proportion before anatomy |
+| 2. Blocking-in | Head circle and jaw, ribcage egg, pelvis box | Proportion before anatomy |
 | 3. Axes | Shoulder and hip tilt lines | Reveals the contrapposto |
 | 4. Wireframe | One straight segment per bone | Limb lengths are cheap to fix here |
 | 5. Articulations | A circle on every joint | The hinges that drive the contour |

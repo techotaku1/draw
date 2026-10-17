@@ -3,17 +3,22 @@ import { angleDeg, distance, midpoint, round, toViewBox } from '@/features/landm
 import { FACE_IDS } from './landmarks';
 import type { FaceGuides, FaceMetrics, GuideLine } from './types';
 
-/** How far the guide lines run past the cranium, as a fraction of its width. */
-const LINE_OVERSHOOT = 0.25;
+/**
+ * How far the horizontal guides run past the cranium on each side, in radii.
+ * Manga construction rules them clean across the head and beyond it, through
+ * the ears, so every division visibly meets the skull and the cheek lines.
+ */
+const LINE_OVERSHOOT = 0.35;
 
-/** Sag of a horizontal guide at its midpoint, as a fraction of its half-width. */
-const WRAP_DEPTH = 0.22;
+/**
+ * Half-length of a horizontal guide before the cranium exists, as a multiple
+ * of the eye spacing. In this style the head is about twice as wide as the
+ * eyes are apart, so this already reaches the sides of the face.
+ */
+const LOOSE_REACH = 1.2;
 
-/** Wrap kept even on a dead-on face, so the guides still read as a ball. */
-const WRAP_FLOOR = 0.3;
-
-/** Face turn, in cranium radii, at which the guides reach their full wrap. */
-const FULL_TURN = 0.35;
+/** How far the symmetry axis runs past the crown and the chin, in head heights. */
+const AXIS_OVERSHOOT = 0.08;
 
 const EMPTY_METRICS: FaceMetrics = {
   headHeight: null,
@@ -227,24 +232,6 @@ const positionAlong = (point: Point, from: Point, to: Point): number => {
   return ((point.x - from.x) * dx + (point.y - from.y) * dy) / lengthSquared;
 };
 
-const extend = (from: Point, to: Point, by: number): [Point, Point] => {
-  const dx = to.x - from.x;
-  const dy = to.y - from.y;
-  const length = Math.hypot(dx, dy);
-
-  if (length === 0) {
-    return [from, to];
-  }
-
-  const ux = (dx / length) * by;
-  const uy = (dy / length) * by;
-
-  return [
-    { x: from.x - ux, y: from.y - uy },
-    { x: to.x + ux, y: to.y + uy },
-  ];
-};
-
 // How far the nose and mouth stray from the symmetry axis, in cranium widths.
 const measureDrift = (
   marks: Marks,
@@ -316,9 +303,6 @@ const SYMMETRIC_PAIRS = [
   ['jawL', 'jawR'],
 ] as const;
 
-/** Value of `t * (1 - t)` at the middle of the axis, where the bow is largest. */
-const BOW_PEAK = 0.25;
-
 const AXIS_SAMPLES = 18;
 
 /**
@@ -374,12 +358,16 @@ const measureBow = (marks: Marks): number => {
 };
 
 /**
- * The line of symmetry, from the crown to the chin.
+ * The line of symmetry, from just above the crown to just below the chin.
  *
  * Straight on a frontal face and bowed on a three-quarter view, with the bow
  * fitted to every paired landmark at once rather than threaded through the eye
  * midpoint. Forcing the curve through one pair meant any error in that pair
  * became a visible lean in the face's own axis.
+ *
+ * It runs a little past both ends, as the centre line of a construction
+ * sheet does, so the crown and the chin read as points on the axis rather
+ * than as where it stops.
  *
  * @param marks Landmarks in SVG user-space.
  * @returns The sampled axis, or an empty array without a head axis.
@@ -404,7 +392,7 @@ const buildAxis = (marks: Marks): Point[] => {
   const out: Point[] = [];
 
   for (let i = 0; i <= AXIS_SAMPLES; i += 1) {
-    const t = i / AXIS_SAMPLES;
+    const t = -AXIS_OVERSHOOT + ((1 + 2 * AXIS_OVERSHOOT) * i) / AXIS_SAMPLES;
     const sag = amount * t * (1 - t);
 
     out.push({
@@ -417,66 +405,6 @@ const buildAxis = (marks: Marks): Point[] => {
 };
 
 type Cranium = { center: Point; radius: number } | null;
-
-/**
- * Bows a horizontal guide so it wraps the cranium instead of cutting across it
- * flat. A line level with the middle of the ball curves most; one near the
- * crown, or below the ball entirely, flattens out — which is how a latitude
- * line behaves on a sphere.
- *
- * The depth is a constant rather than a measured pitch: ten landmarks cannot
- * separate a head tilted forward from a face that is simply built long.
- *
- * @param from One end of the guide.
- * @param to The other end.
- * @param cranium The fitted cranium circle, or `null` when unavailable.
- * @param down Unit vector pointing from the crown toward the chin.
- * @param turn How far the face has turned, from `measureTurn`.
- * @returns The sampled arc, or the straight chord when there is no cranium.
- */
-const wrapAcrossCranium = (
-  from: Point,
-  to: Point,
-  cranium: Cranium,
-  down: Point | null,
-  turn: number,
-): Point[] => {
-  if (!(cranium && down) || cranium.radius <= 0) {
-    return [from, to];
-  }
-
-  const mid = midpoint(from, to);
-  // cos of the latitude: 1 level with the centre of the ball, 0 at its poles.
-  const offset =
-    ((mid.x - cranium.center.x) * down.x + (mid.y - cranium.center.y) * down.y) / cranium.radius;
-  const latitude = Math.sqrt(Math.max(0, 1 - offset * offset));
-  const sag = (distance(from, to) / 2) * latitude * WRAP_DEPTH * turn;
-
-  return arc(from, { x: mid.x + down.x * sag, y: mid.y + down.y * sag }, to);
-};
-
-/**
- * How far the face has turned away from dead-on, as a factor between the floor
- * and one. A frontal face keeps its eye midpoint on the crown-to-chin chord; a
- * three-quarter view pushes it off, which is the same signal the symmetry axis
- * already bows with.
- *
- * @param marks Landmarks in SVG user-space.
- * @param cranium The fitted cranium circle, or `null` when unavailable.
- * @returns A multiplier for the wrap depth.
- */
-const measureTurn = (marks: Marks, cranium: Cranium): number => {
-  if (!cranium || cranium.radius <= 0) {
-    return WRAP_FLOOR;
-  }
-
-  // The same fitted bow the axis is drawn with, taken at its deepest point, so
-  // the wrap and the midline can never disagree about which way the head faces.
-  const off = Math.abs(measureBow(marks)) * BOW_PEAK;
-  const turn = Math.min(1, off / cranium.radius / FULL_TURN);
-
-  return WRAP_FLOOR + (1 - WRAP_FLOOR) * turn;
-};
 
 /**
  * The vertical half of the grid. A face is five eye-widths across, so the
@@ -528,291 +456,179 @@ const buildFifths = (marks: Marks): GuideLine[] => {
   });
 };
 
-const buildLines = (marks: Marks, overshoot: number, cranium: Cranium): GuideLine[] => {
+/**
+ * The horizontal divisions of the face, each ruled straight across the whole
+ * head through its own landmark.
+ *
+ * This is how the construction is drawn on the reference sheet the studio
+ * follows: every division is one straight stroke that crosses the skull from
+ * side to side and runs out past the ears, in the front, the profile and the
+ * three-quarter view alike. Short rules floating at each landmark — the nose
+ * and the chin barely a pupil wide — never reached the circle or the cheek
+ * lines, so nothing tied the features to the head they sit on.
+ *
+ * Every division borrows the eye line's direction on purpose. A ruled
+ * construction keeps them parallel; letting each landmark set its own angle
+ * makes the face read as if it were coming apart. They are centred on the
+ * cranium rather than on their landmark, so a turned face still gets rules
+ * that span the head instead of hanging off one side of it.
+ *
+ * The hairline needs no landmark: manga construction places it halfway
+ * between the top of the skull and the centre of the cranium circle, which is
+ * where all three views of the reference sheet put it.
+ *
+ * @param marks Landmarks in SVG user-space.
+ * @param cranium The fitted cranium circle, when there is one.
+ * @returns The five-eye verticals followed by the horizontal divisions.
+ */
+const buildLines = (marks: Marks, cranium: Cranium): GuideLine[] => {
   const { crownTop, chin, eyeL, eyeR, noseTip, mouth } = marks;
-  const lines: GuideLine[] = [];
+  const across = eyeL && eyeR ? unitVector(eyeL, eyeR) : null;
 
-  if (!(eyeL && eyeR)) {
-    return lines;
+  if (!(eyeL && eyeR && across)) {
+    return [];
   }
+
+  const head =
+    cranium && cranium.radius > 0
+      ? { center: cranium.center, reach: cranium.radius * (1 + LINE_OVERSHOOT) }
+      : { center: midpoint(eyeL, eyeR), reach: distance(eyeL, eyeR) * LOOSE_REACH };
+
+  const ruleThrough = (at: Point): Point[] => {
+    const shift = (head.center.x - at.x) * across.x + (head.center.y - at.y) * across.y;
+    const middle = { x: at.x + across.x * shift, y: at.y + across.y * shift };
+
+    return [
+      { x: middle.x - across.x * head.reach, y: middle.y - across.y * head.reach },
+      { x: middle.x + across.x * head.reach, y: middle.y + across.y * head.reach },
+    ];
+  };
 
   const down = crownTop && chin ? unitVector(crownTop, chin) : null;
-  const turn = measureTurn(marks, cranium);
-  const [eyeFrom, eyeTo] = extend(eyeL, eyeR, overshoot);
+  const hair =
+    cranium && down
+      ? {
+          x: cranium.center.x - (down.x * cranium.radius) / 2,
+          y: cranium.center.y - (down.y * cranium.radius) / 2,
+        }
+      : undefined;
 
-  const tilt = (angleDeg(eyeL, eyeR) * Math.PI) / 180;
-
-  /**
-   * A horizontal division of the face: a rule at one landmark's height,
-   * borrowing the eye line's direction.
-   *
-   * Every division shares that tilt on purpose. A ruled construction keeps
-   * them parallel; letting each landmark set its own angle makes the face
-   * read as if it were coming apart.
-   *
-   * @param at The point the rule passes through.
-   * @param half Half its length.
-   * @returns The two ends of the rule.
-   */
-  const ruleAt = (at: Point, half: number) => [
-    { x: at.x - Math.cos(tilt) * half, y: at.y - Math.sin(tilt) * half },
-    { x: at.x + Math.cos(tilt) * half, y: at.y + Math.sin(tilt) * half },
+  const divisions: [GuideLine['kind'], Point | undefined][] = [
+    ['hairLine', hair],
+    ['browLine', marks.brow],
+    ['eyeLine', midpoint(eyeL, eyeR)],
+    ['noseLine', noseTip],
+    ['mouthLine', mouth],
+    ['chinLine', chin],
   ];
 
-  const wide = distance(eyeL, eyeR) / 2 + overshoot;
+  // The fifths go first so the ruler is painted under the divisions.
+  const lines = buildFifths(marks);
 
-  // Loomis divides the face into three equal parts: hairline to brow, brow to
-  // the end of the nose, nose to chin. Two of those thirds span brow to chin,
-  // so the hairline sits half that distance above the brow — derived, which is
-  // why it needs no landmark of its own.
-  if (marks.brow && chin) {
-    const third = { x: (chin.x - marks.brow.x) / 2, y: (chin.y - marks.brow.y) / 2 };
-    const hair = { x: marks.brow.x - third.x, y: marks.brow.y - third.y };
-    const [from, to] = ruleAt(hair, wide);
-
-    if (from && to) {
-      lines.push({
-        id: 'hairLine',
-        points: wrapAcrossCranium(from, to, cranium, down, turn),
-        kind: 'hairLine',
-      });
+  for (const [kind, at] of divisions) {
+    if (at) {
+      lines.push({ id: kind, points: ruleThrough(at), kind });
     }
-  }
-
-  if (marks.brow) {
-    const [from, to] = ruleAt(marks.brow, wide);
-
-    if (from && to) {
-      lines.push({
-        id: 'browLine',
-        points: wrapAcrossCranium(from, to, cranium, down, turn),
-        kind: 'browLine',
-      });
-    }
-  }
-
-  lines.push(
-    {
-      id: 'eyeLine',
-      points: wrapAcrossCranium(eyeFrom, eyeTo, cranium, down, turn),
-      kind: 'eyeLine',
-    },
-    ...buildFifths(marks),
-  );
-
-  // Nose and mouth are the same construction: a short rule at the landmark's
-  // own height, borrowing the eye line's tilt so every horizontal division of
-  // the face stays parallel. The nose rule is the narrower of the two because
-  // the nose reads about as wide as the gap between the eyes, while the mouth
-  // runs out to the pupils.
-  // The lower divisions narrow as the face tapers: the nose reads about as wide
-  // as the gap between the eyes, the mouth runs out toward the pupils, and the
-  // chin is the narrowest of the three.
-  for (const [id, mark, span] of [
-    ['noseLine', noseTip, 0.26],
-    ['mouthLine', mouth, 0.35],
-    ['chinLine', chin, 0.22],
-  ] as const) {
-    if (!mark) {
-      continue;
-    }
-
-    const [from, to] = ruleAt(mark, distance(eyeL, eyeR) * span);
-
-    if (!(from && to)) {
-      continue;
-    }
-
-    lines.push({
-      id,
-      points: wrapAcrossCranium(from, to, cranium, down, turn),
-      kind: id,
-    });
   }
 
   return lines;
 };
 
 /**
- * Samples one cubic Hermite span: two endpoints and the direction the curve
- * takes at each of them.
- *
- * Hermite rather than Bézier because what this jaw has to honour is tangents,
- * not control points — leave the skull straight down, arrive at the chin
- * straight across — and a Hermite span takes those directions as its input
- * instead of making us solve for handles that produce them.
- *
- * @param from Where the span starts.
- * @param fromTangent Direction and strength of departure at `from`.
- * @param to Where the span ends.
- * @param toTangent Direction and strength of arrival at `to`.
- * @param samples How many segments to cut the span into.
- * @returns The sampled polyline, both endpoints included.
+ * Half the length of the flat stroke that closes the chin, as a fraction of
+ * the distance between the jaw corners. Manga construction ends the face in a
+ * short level stroke rather than a point or a bowl: on the reference sheet the
+ * artists' guides are measured from, the chin is 12 units wide under a jaw
+ * 99 across.
  */
-const hermite = (
-  from: Point,
-  fromTangent: Point,
-  to: Point,
-  toTangent: Point,
-  samples: number,
-): Point[] => {
-  const out: Point[] = [];
-
-  for (let i = 0; i <= samples; i += 1) {
-    const t = i / samples;
-    const square = t * t;
-    const cube = square * t;
-    const startWeight = 2 * cube - 3 * square + 1;
-    const startSlope = cube - 2 * square + t;
-    const endWeight = 3 * square - 2 * cube;
-    const endSlope = cube - square;
-
-    out.push({
-      x:
-        startWeight * from.x +
-        startSlope * fromTangent.x +
-        endWeight * to.x +
-        endSlope * toTangent.x,
-      y:
-        startWeight * from.y +
-        startSlope * fromTangent.y +
-        endWeight * to.y +
-        endSlope * toTangent.y,
-    });
-  }
-
-  return out;
-};
+const CHIN_FLAT = 0.06;
 
 /**
- * Segments per span. The arrival at the chin is exactly flat by construction,
- * but a coarse polyline still shows a kink there because each drawn chord is a
- * secant of a curve that is turning hard: at 14 the two arms met at 12 degrees,
- * at 24 they meet at 6.
- */
-const JAW_SAMPLES = 24;
-
-/**
- * How strongly the arm is already travelling sideways when it reaches the
- * chin, as a multiple of the corner-to-chin distance. It sets how round the
- * bottom of the face is: at zero the two arms meet in a spike, and large
- * values spread the turn so far up the jaw that the chin reads as broad.
- * Measured across four corner placements, 1.2 brings the meeting angle under
- * six degrees without the curve ever dipping below the marked chin.
- */
-const CHIN_ROUNDING = 1.2;
-
-/**
- * One side of the jaw: off the cranium, through the marked corner, into the
- * chin.
+ * Where a cheek line leaves the cranium: the point of the circle on its
+ * temple's side.
  *
- * Three conditions make this the line an artist draws, and all three are
- * tangent conditions, which is why the span is Hermite:
+ * The temple is one of the three points the circle was fitted through, so on a
+ * fitted cranium this is the temple itself — where the drawn outline of the
+ * face meets the skull, level with the top of the ear. A temple the fit had to
+ * discard (a crown read off the hair) is pulled onto the circle along its
+ * radius instead, so the cheek still starts on the skull rather than floating
+ * off it. A temple above the widest point would start the cheek inside the
+ * ball and cut a chord across it, so the start never rises past the widest
+ * point.
  *
- * 1. It leaves the widest point of the cranium heading straight down the head
- *    axis. The circle is also vertical there, so skull and jaw are one
- *    unbroken outline with no crease at the join. This is also what fixed the
- *    real defect: the old code looked for a tangent line from the corner to
- *    the circle and gave up when there was none — which is every frontal face,
- *    because a jaw is narrower than the skull above it. The widest point
- *    always exists, so the curve is always built.
- * 2. It passes exactly through the marked corner, which is the whole point of
- *    marking it.
- * 3. It arrives at the chin moving straight across the face. Both arms do, so
- *    they meet in a round chin instead of the V that was being drawn.
- *
- * @param corner The marked jaw corner, which the arm passes through.
- * @param chin The tip of the chin.
+ * @param temple The temple on this side.
  * @param cranium The fitted cranium circle.
  * @param down Unit vector from the crown toward the chin.
- * @returns The sampled arm, from the cranium down to the chin.
+ * @returns The point on the circle the cheek line starts from.
  */
-const jawArm = (
-  corner: Point,
-  chin: Point,
-  cranium: NonNullable<Cranium>,
-  down: Point,
-): Point[] => {
-  const across = { x: -down.y, y: down.x };
-  const sideways =
-    (corner.x - cranium.center.x) * across.x + (corner.y - cranium.center.y) * across.y;
-  const sign = sideways >= 0 ? 1 : -1;
-  const outward = { x: across.x * sign, y: across.y * sign };
+const cheekStart = (temple: Point, cranium: NonNullable<Cranium>, down: Point): Point => {
+  const offset = { x: temple.x - cranium.center.x, y: temple.y - cranium.center.y };
+  const below = offset.x * down.x + offset.y * down.y;
+  const reach = below < 0 ? { x: offset.x - down.x * below, y: offset.y - down.y * below } : offset;
+  const length = Math.hypot(reach.x, reach.y);
 
-  const departure = {
-    x: cranium.center.x + outward.x * cranium.radius,
-    y: cranium.center.y + outward.y * cranium.radius,
-  };
-
-  // The corner is a waypoint, not a corner in the geometric sense: both spans
-  // pass through it heading the same way, so the arm reads as one stroke.
-  //
-  // That shared direction is scaled by each span's own chord rather than used
-  // at one length for both. The span above the corner is short and the one
-  // below it is long, and feeding the long span's tangent into the short one
-  // is the classic Catmull-Rom overshoot: it bowed the jaw sideways out of the
-  // skull by four units before the chord scaling, and by nothing after it.
-  const waist = unitVector(departure, chin);
-
-  if (!waist) {
-    return [departure, corner, chin];
+  if (length === 0) {
+    return temple;
   }
 
-  const upper = distance(departure, corner);
-  const lower = distance(corner, chin);
-  const flatten = lower * CHIN_ROUNDING;
-
-  return [
-    ...hermite(
-      departure,
-      { x: down.x * upper, y: down.y * upper },
-      corner,
-      { x: waist.x * upper, y: waist.y * upper },
-      JAW_SAMPLES,
-    ),
-    ...hermite(
-      corner,
-      { x: waist.x * lower, y: waist.y * lower },
-      chin,
-      { x: -outward.x * flatten, y: -outward.y * flatten },
-      JAW_SAMPLES,
-    ).slice(1),
-  ];
+  return {
+    x: cranium.center.x + (reach.x / length) * cranium.radius,
+    y: cranium.center.y + (reach.y / length) * cranium.radius,
+  };
 };
 
 /**
- * The jaw, carried up until each arm meets the cranium circle.
+ * The jaw as a manga artist rules it: a straight cheek line from the side of
+ * the cranium down to each jaw corner, then straight into a short flat chin.
  *
- * A manga head is not a circle with a separate V floating under it: the jaw
- * continues the skull, and the chin is round.
+ * Every segment is a straight stroke and every joint a real corner, because
+ * that is the construction on the reference sheet: the circle is the skull,
+ * the cheek lines hang off it where the face meets it, and the jaw corner and
+ * the chin are the two places the outline turns. The rounded curve this
+ * replaced left the circle at its widest point and bowed out past the drawn
+ * cheeks into a U, so it traced neither the skull nor the face.
  *
- * @param chin The tip of the chin.
- * @param jawL The left jaw corner.
- * @param jawR The right jaw corner.
+ * Without a cranium there is nothing to hang the cheeks from, so the corners
+ * and the chin are joined as a bare V.
+ *
+ * @param marks Landmarks in SVG user-space.
  * @param cranium The fitted cranium circle, when there is one.
  * @param down Unit vector from the crown toward the chin, when there is one.
- * @returns The jaw polyline, left to right.
+ * @returns The jaw polyline, left to right, or an empty array.
  */
-const buildJaw = (
-  chin: Point,
-  jawL: Point,
-  jawR: Point,
-  cranium: Cranium,
-  down: Point | null,
-): Point[] => {
-  if (!(cranium && down) || cranium.radius <= 0) {
+const buildJaw = (marks: Marks, cranium: Cranium, down: Point | null): Point[] => {
+  const { chin, jawL, jawR, templeL, templeR } = marks;
+
+  if (!(chin && jawL && jawR)) {
+    return [];
+  }
+
+  if (!(cranium && down && templeL && templeR) || cranium.radius <= 0) {
     return [jawL, chin, jawR];
   }
 
+  const half = distance(jawL, jawR) * CHIN_FLAT;
+  const across = { x: -down.y * half, y: down.x * half };
+  const one = { x: chin.x + across.x, y: chin.y + across.y };
+  const other = { x: chin.x - across.x, y: chin.y - across.y };
+  // `across` follows the head axis, not the image, so which end of the flat is
+  // the left one is read off the jaw corners rather than assumed.
+  const [chinL, chinR] = distance(one, jawL) <= distance(other, jawL) ? [one, other] : [other, one];
+
   return [
-    ...jawArm(jawL, chin, cranium, down),
-    ...jawArm(jawR, chin, cranium, down).toReversed().slice(1),
+    cheekStart(templeL, cranium, down),
+    jawL,
+    chinL,
+    chinR,
+    jawR,
+    cheekStart(templeR, cranium, down),
   ];
 };
 
 /**
- * Turns the marked landmarks into the anime face construction: cranium circle,
- * V of the jaw, symmetry axis, eye line, five-eye verticals and the arc that
+ * Turns the marked landmarks into the manga face construction: cranium
+ * circle, cheek lines and jaw hung off it, symmetry axis, the horizontal
+ * divisions ruled across the whole head, five-eye verticals and the arc that
  * joins the eyes through the nose.
  *
  * @param marks Landmarks in normalized image space.
@@ -822,9 +638,7 @@ const buildJaw = (
 export const buildFaceGuides = (marks: Marks, aspect: number): FaceGuides => {
   const safeAspect = Number.isFinite(aspect) && aspect > 0 ? aspect : 1;
   const p = toViewBox(marks, safeAspect, FACE_IDS);
-  const { crownTop, chin, templeL, templeR, eyeL, eyeR, jawL, jawR, noseTip } = p;
-
-  const width = templeL && templeR ? distance(templeL, templeR) : 0;
+  const { crownTop, chin, templeL, templeR, eyeL, eyeR, noseTip } = p;
 
   let cranium: FaceGuides['cranium'] = null;
 
@@ -837,10 +651,10 @@ export const buildFaceGuides = (marks: Marks, aspect: number): FaceGuides => {
   return {
     cranium,
     headBox: buildHeadBox(p),
-    jaw: jawL && chin && jawR ? buildJaw(chin, jawL, jawR, cranium, down) : [],
+    jaw: buildJaw(p, cranium, down),
     axis: buildAxis(p),
     noseArc: eyeL && eyeR && noseTip ? arc(eyeL, noseTip, eyeR) : [],
-    lines: buildLines(p, width * LINE_OVERSHOOT, cranium),
+    lines: buildLines(p, cranium),
     metrics: buildMetrics(p, cranium?.radius ?? null),
   };
 };

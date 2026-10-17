@@ -121,23 +121,70 @@ const buildActionLine = (pose: Pose): Point[] => {
   return smoothCurve(anchors);
 };
 
+/**
+ * The manga head, as fractions of the crown-to-chin height. Two landmarks
+ * cannot say how a head is built, so these are read off the front view of the
+ * construction sheet the face studio follows: a cranium circle touching the
+ * crown, cheek lines leaving it a third of a radius below its centre, jaw
+ * corners five sixths of the way down and a short flat chin.
+ */
+const HEAD = {
+  radius: 0.4,
+  cheekDrop: 0.35,
+  jawDepth: 0.83,
+  jawWidth: 0.3,
+  chinFlat: 0.037,
+} as const;
+
+/**
+ * Blocks in the head the way a manga artist does: a circle for the skull with
+ * straight cheek lines hung off it down to the jaw corners and a flat chin.
+ *
+ * It replaces an egg that ran from the crown to the chin, which read as a
+ * realistic skull and left the face studio and the body studio teaching two
+ * different heads.
+ *
+ * @param top The top of the skull.
+ * @param chin The tip of the chin.
+ * @returns The head mass, or `null` when both landmarks coincide.
+ */
+const buildHead = (top: Point, chin: Point): Mass | null => {
+  const height = distance(top, chin);
+
+  if (height === 0) {
+    return null;
+  }
+
+  const down = { x: (chin.x - top.x) / height, y: (chin.y - top.y) / height };
+  const at = (along: number, side: number): Point => ({
+    x: top.x + (down.x * along - down.y * side) * height,
+    y: top.y + (down.y * along + down.x * side) * height,
+  });
+  const cheekDepth = HEAD.radius * (1 + HEAD.cheekDrop);
+  const cheekSide = HEAD.radius * Math.sqrt(1 - HEAD.cheekDrop ** 2);
+
+  return {
+    kind: 'head',
+    id: 'head',
+    cranium: { center: at(HEAD.radius, 0), radius: HEAD.radius * height },
+    jaw: [
+      at(cheekDepth, -cheekSide),
+      at(HEAD.jawDepth, -HEAD.jawWidth),
+      at(1, -HEAD.chinFlat),
+      at(1, HEAD.chinFlat),
+      at(HEAD.jawDepth, HEAD.jawWidth),
+      at(cheekDepth, cheekSide),
+    ],
+  };
+};
+
 const buildMasses = (pose: Pose): Mass[] => {
   const masses: Mass[] = [];
   const { headTop, chin, shoulderL, shoulderR, pelvis, hipL, hipR } = pose;
+  const head = headTop && chin ? buildHead(headTop, chin) : null;
 
-  if (headTop && chin) {
-    const height = distance(headTop, chin);
-
-    masses.push({
-      kind: 'ellipse',
-      id: 'head',
-      center: midpoint(headTop, chin),
-      // A human skull reads as an egg roughly three quarters as wide as tall.
-      rx: (height / 2) * 0.76,
-      ry: height / 2,
-      // The ellipse is authored upright, so align it with the head axis.
-      rotation: angleDeg(headTop, chin) - 90,
-    });
+  if (head) {
+    masses.push(head);
   }
 
   if (shoulderL && shoulderR && pelvis) {

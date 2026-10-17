@@ -1,9 +1,8 @@
 import type { Point } from '@/features/landmarks/types';
 
 /**
- * A guide drawn across the construction, as a sampled polyline. The horizontals
- * bow to wrap the cranium; the five-eye verticals stay straight, so they carry
- * two points.
+ * A straight guide drawn across the construction, as its two ends. The
+ * horizontals cross the whole head; the five-eye verticals run crown to chin.
  */
 export type GuideLine = {
   id: string;
@@ -52,9 +51,14 @@ export type FaceGuides = {
    * makes it useful for checking proportion.
    */
   headBox: Point[];
-  /** The V of the jaw, from one jaw corner through the chin to the other. */
+  /**
+   * Cheek lines and jaw, left to right: from the cranium down to one jaw
+   * corner, across a short flat chin and up to the cranium on the other side.
+   * Without a cranium, just the V from one corner through the chin to the
+   * other.
+   */
   jaw: Point[];
-  /** Sampled polyline of the symmetry axis, crown to chin. */
+  /** Sampled polyline of the symmetry axis, running just past the crown and the chin. */
   axis: Point[];
   /** Curve joining both eyes through the nose. */
   noseArc: Point[];

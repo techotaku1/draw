@@ -47,8 +47,16 @@ export type JointMarker = {
 /** A geometric primitive of the "encaje" — the blocked-in volume pass. */
 export type Mass =
   | {
+      kind: 'head';
+      id: 'head';
+      /** The skull: a circle touching the top of the head. */
+      cranium: { center: Point; radius: number };
+      /** Cheek lines and jaw, from one side of the cranium to the other. */
+      jaw: Point[];
+    }
+  | {
       kind: 'ellipse';
-      id: 'head' | 'ribcage';
+      id: 'ribcage';
       center: Point;
       rx: number;
       ry: number;

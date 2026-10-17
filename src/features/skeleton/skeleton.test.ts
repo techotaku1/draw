@@ -81,6 +81,34 @@ describe(buildSkeleton, () => {
       expect(masses.map((mass) => mass.id)).toStrictEqual(['head', 'ribcage', 'pelvis']);
     });
 
+    it('blocks in the head as a cranium circle with the jaw hung off it', () => {
+      const [head] = buildSkeleton(samplePose, SAMPLE_ASPECT).masses;
+
+      if (head?.kind !== 'head') {
+        throw new Error('The first mass is not the head');
+      }
+
+      const { cranium, jaw } = head;
+      const scale = 1000 / SAMPLE_WIDTH;
+      const offCircle = (point: { x: number; y: number } | undefined) =>
+        Math.abs(
+          Math.hypot((point?.x ?? 0) - cranium.center.x, (point?.y ?? 0) - cranium.center.y) -
+            cranium.radius,
+        );
+      const chinFlat = jaw.slice(2, 4);
+
+      // The circle touches the crown, and both cheek lines start on it.
+      expect(cranium.center.y - cranium.radius).toBeCloseTo(10 * scale, 6);
+      expect(offCircle(jaw.at(0))).toBeCloseTo(0, 6);
+      expect(offCircle(jaw.at(-1))).toBeCloseTo(0, 6);
+      // The jaw closes on a flat stroke through the marked chin.
+      for (const point of chinFlat) {
+        expect(point.y).toBeCloseTo(100 * scale, 6);
+      }
+
+      expect(((chinFlat[0]?.x ?? 0) + (chinFlat[1]?.x ?? 0)) / 2).toBeCloseTo(200 * scale, 6);
+    });
+
     it('draws a smooth action line instead of a raw polyline', () => {
       const { actionLine } = buildSkeleton(samplePose, SAMPLE_ASPECT);
 

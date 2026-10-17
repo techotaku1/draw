@@ -21,6 +21,31 @@ const toPath = (points: Point[]): string =>
 const MassShape = (props: { mass: Mass; stroke: number }) => {
   const dash = `${props.stroke * 3} ${props.stroke * 2}`;
 
+  if (props.mass.kind === 'head') {
+    return (
+      <g>
+        <circle
+          cx={props.mass.cranium.center.x}
+          cy={props.mass.cranium.center.y}
+          r={props.mass.cranium.radius}
+          fill={MASS_COLOR}
+          fillOpacity={0.08}
+          stroke={MASS_COLOR}
+          strokeWidth={props.stroke}
+          strokeDasharray={dash}
+        />
+        <path
+          d={toPath(props.mass.jaw)}
+          fill="none"
+          stroke={MASS_COLOR}
+          strokeWidth={props.stroke}
+          strokeDasharray={dash}
+          strokeLinejoin="round"
+        />
+      </g>
+    );
+  }
+
   if (props.mass.kind === 'quad') {
     return (
       <polygon

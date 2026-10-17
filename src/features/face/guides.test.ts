@@ -47,88 +47,21 @@ const gap = (from: Corner | undefined, to: Corner | undefined) =>
   Math.hypot((from?.x ?? 0) - (to?.x ?? 0), (from?.y ?? 0) - (to?.y ?? 0));
 
 /**
- * A sampled point with the missing case folded away. `Array.prototype.at` is
- * typed as possibly undefined, and spelling that out at every coordinate
- * buried these measurements under `?? 0`.
- *
- * @param point The point to read, possibly missing.
- * @returns The point, or the origin.
- */
-const xy = (point: Corner | undefined): Corner => point ?? { x: 0, y: 0 };
-
-/**
- * The direction a sampled guide sets off in from one of its ends, to second
- * order.
- *
- * A single chord is a secant of a curve that is already turning, so it leans a
- * fraction of a degree off the true tangent — enough to drown the thing being
- * measured. `(-3a + 4b - c) / 2` is the one-sided difference that cancels it.
- *
- * @param from The point the direction is measured at.
- * @param next Its neighbour.
- * @param after The neighbour after that.
- * @returns The unit direction pointing away from `from`.
- */
-const tangentAt = (
-  from: Corner | undefined,
-  next: Corner | undefined,
-  after: Corner | undefined,
-): Corner => {
-  const a = xy(from);
-  const b = xy(next);
-  const c = xy(after);
-  const x = (-3 * a.x + 4 * b.x - c.x) / 2;
-  const y = (-3 * a.y + 4 * b.y - c.y) / 2;
-  const length = Math.hypot(x, y) || 1;
-
-  return { x: x / length, y: y / length };
-};
-
-/**
- * Angle between two directions.
- *
- * @param left One direction.
- * @param right The other one.
- * @returns The angle between them, in degrees.
- */
-const between = (left: Corner, right: Corner): number =>
-  (Math.acos(Math.min(1, Math.max(-1, left.x * right.x + left.y * right.y))) * 180) / Math.PI;
-
-/**
- * Index of the lowest point of a sampled guide.
+ * How far a sampled guide strays from the straight line through two points.
  *
  * @param points The sampled polyline.
- * @returns The index of the point with the largest y.
- */
-const lowestIndex = (points: Corner[]): number => {
-  let best = 0;
-
-  for (const [index, point] of points.entries()) {
-    if (point.y > xy(points[best]).y) {
-      best = index;
-    }
-  }
-
-  return best;
-};
-
-/**
- * How far a sampled guide departs from the straight line joining its ends.
- *
- * @param points The sampled polyline.
+ * @param from One point of the reference line.
+ * @param to Another point of the reference line.
  * @returns The widest perpendicular gap.
  */
-const bowOf = (points: Corner[]): number => {
-  const start = xy(points.at(0));
-  const end = xy(points.at(-1));
-  const length = Math.hypot(end.x - start.x, end.y - start.y) || 1;
+const leanOf = (points: Corner[], from: Corner, to: Corner): number => {
+  const length = Math.hypot(to.x - from.x, to.y - from.y) || 1;
 
   return Math.max(
     ...points.map(
       (point) =>
-        Math.abs(
-          (point.x - start.x) * (end.y - start.y) - (point.y - start.y) * (end.x - start.x),
-        ) / length,
+        Math.abs((point.x - from.x) * (to.y - from.y) - (point.y - from.y) * (to.x - from.x)) /
+        length,
     ),
   );
 };
@@ -139,6 +72,16 @@ const H = 520;
 const ASPECT = W / H;
 
 const at = (x: number, y: number) => ({ x: x / W, y: y / H });
+
+/**
+ * An image point of the fixture in view-box space, where both axes scale by
+ * 1000 / W.
+ *
+ * @param x Horizontal position in image units.
+ * @param y Vertical position in image units.
+ * @returns The same point in view-box units.
+ */
+const inView = (x: number, y: number): Corner => ({ x: (x * 1000) / W, y: (y * 1000) / W });
 
 // Cranium circle spans y 60..320 with a radius of 130; the chin hangs at 430
 // and the eye line sits at 265, inside the lower part of that circle.
@@ -337,18 +280,40 @@ describe(buildFaceGuides, () => {
       expect(heading(brow?.points)).toBeCloseTo(heading(eyes?.points), 2);
     });
 
-    it('rules the nose line parallel to the eyes, narrower than the mouth', () => {
-      const { lines } = buildFaceGuides(sampleFace, ASPECT);
-      const nose = lines.find((line) => line.kind === 'noseLine');
-      const mouth = lines.find((line) => line.kind === 'mouthLine');
-      const eyes = lines.find((line) => line.kind === 'eyeLine');
+    it('rules every division straight across the whole head', () => {
+      const { lines, cranium } = buildFaceGuides({ ...sampleFace, brow: at(200, 225) }, ASPECT);
+      const eyes = heading(lines.find((line) => line.kind === 'eyeLine')?.points);
+      const divisions = lines.filter((line) => line.kind !== 'fifth');
+      const spans = divisions.map((line) => span(line.points));
+      // Off-centre distance of each rule's middle from the cranium's centre.
+      const offCentre = divisions.map((line) =>
+        Math.abs(
+          ((line.points.at(0)?.x ?? 0) + (line.points.at(-1)?.x ?? 0)) / 2 -
+            (cranium?.center.x ?? 0),
+        ),
+      );
 
-      expect(nose).toBeDefined();
-      expect(heading(nose?.points)).toBeCloseTo(heading(eyes?.points), 2);
-      expect(span(nose?.points)).toBeLessThan(span(mouth?.points));
+      // One straight stroke each, top to bottom.
+      expect(divisions.map((line) => [line.kind, line.points.length])).toStrictEqual([
+        ['hairLine', 2],
+        ['browLine', 2],
+        ['eyeLine', 2],
+        ['noseLine', 2],
+        ['mouthLine', 2],
+        ['chinLine', 2],
+      ]);
+      // All parallel to the eyes.
+      expect(
+        Math.max(...divisions.map((line) => Math.abs(heading(line.points) - eyes))),
+      ).toBeLessThan(1e-9);
+      // All the same length, longer than the skull is wide, and centred on it,
+      // so every rule runs out past the circle on both sides.
+      expect(Math.max(...spans) - Math.min(...spans)).toBeLessThan(1e-9);
+      expect(Math.min(...spans)).toBeGreaterThan(2 * (cranium?.radius ?? 0));
+      expect(Math.max(...offCentre)).toBeLessThan(1e-9);
     });
 
-    it('rules the five Loomis divisions from the hairline down to the chin', () => {
+    it('rules the six divisions in order from the hairline down to the chin', () => {
       const withBrow: Marks = { ...sampleFace, brow: at(200, 225) };
       const { lines } = buildFaceGuides(withBrow, ASPECT);
       const height = (kind: string) => {
@@ -369,13 +334,19 @@ describe(buildFaceGuides, () => {
       }
     });
 
-    it('derives the hairline above the brow without a landmark of its own', () => {
-      const noBrow = buildFaceGuides(sampleFace, ASPECT);
-      const withBrow = buildFaceGuides({ ...sampleFace, brow: at(200, 225) }, ASPECT);
+    it('places the hairline halfway between the crown and the centre of the cranium', () => {
+      const { lines, cranium } = buildFaceGuides(sampleFace, ASPECT);
+      const hair = lines.find((line) => line.kind === 'hairLine');
+      const bare = buildFaceGuides({ ...sampleFace, templeL: undefined }, ASPECT);
 
-      // It is built from brow and chin, so it cannot exist without the brow.
-      expect(noBrow.lines.some((line) => line.kind === 'hairLine')).toBeFalsy();
-      expect(withBrow.lines.some((line) => line.kind === 'hairLine')).toBeTruthy();
+      // Derived from the circle, so it needs no landmark of its own — and
+      // without a cranium there is nothing to derive it from.
+      for (const point of hair?.points ?? []) {
+        expect(point.y).toBeCloseTo((cranium?.center.y ?? 0) - (cranium?.radius ?? 0) / 2, 6);
+      }
+
+      expect(hair).toBeDefined();
+      expect(bare.lines.some((line) => line.kind === 'hairLine')).toBeFalsy();
     });
 
     it('starts and ends the jaw on the cranium circle', () => {
@@ -387,81 +358,80 @@ describe(buildFaceGuides, () => {
       expect(offCircle(jaw.at(-1))).toBeCloseTo(0, 6);
     });
 
-    it('runs the jaw through the marked corners, not merely toward them', () => {
+    it('runs the jaw through the marked corners and chin', () => {
       const { jaw } = buildFaceGuides(sampleFace, ASPECT);
-      const { jaw: plain } = buildFaceGuides({ ...sampleFace, crownTop: undefined }, ASPECT);
-      const closest = (target: Corner | undefined) =>
-        Math.min(...jaw.map((point) => gap(point, target)));
+      const [, cornerL, chinL, chinR, cornerR] = jaw;
 
-      // `plain` has no cranium, so its three vertices are the marked corners
-      // and chin in view-box space. A single quadratic only leaned toward
-      // them, which drew a jaw narrower than the one the artist marked.
-      expect(closest(plain.at(0))).toBeCloseTo(0, 6);
-      expect(closest(plain.at(1))).toBeCloseTo(0, 6);
-      expect(closest(plain.at(2))).toBeCloseTo(0, 6);
+      // The corners are vertices of the jaw, and the chin sits in the middle
+      // of the flat stroke that closes it.
+      expect(gap(cornerL, inView(95, 268))).toBeCloseTo(0, 6);
+      expect(gap(cornerR, inView(305, 268))).toBeCloseTo(0, 6);
+      expect(
+        gap({ x: ((chinL?.x ?? 0) + (chinR?.x ?? 0)) / 2, y: chinL?.y ?? 0 }, inView(200, 430)),
+      ).toBeCloseTo(0, 6);
     });
 
-    it('leaves the cranium tangentially so skull and jaw read as one outline', () => {
-      const { jaw, cranium } = buildFaceGuides(sampleFace, ASPECT);
+    it('starts each cheek line at its own temple', () => {
+      const { jaw } = buildFaceGuides(sampleFace, ASPECT);
 
-      // Angle between the radius at the start point and the direction the
-      // curve sets off in. Ninety degrees means the curve continues the
-      // circle instead of cutting across it or creasing against it.
-      //
-      // The direction is taken from three points, not two. The first chord
-      // alone is a secant of a curve that is already turning, so it reads a
-      // degree off the true tangent and cannot tell a real crease from its
-      // own sampling error. `(-3a + 4b - c) / 2` is the one-sided difference
-      // that cancels that lean, which is what lets the tolerance below be
-      // tight enough to mean something.
-      const leaving = (tip: number, next: number, after: number) => {
-        const end = xy(jaw.at(tip));
-        const centre = xy(cranium?.center);
-        const radius = { x: end.x - centre.x, y: end.y - centre.y };
-        const length = Math.hypot(radius.x, radius.y) || 1;
+      // The temples lie on the fitted circle, where the drawn outline of the
+      // face meets the skull, so that is exactly where the cheeks leave it.
+      expect(gap(jaw.at(0), inView(70, 190))).toBeCloseTo(0, 6);
+      expect(gap(jaw.at(-1), inView(330, 190))).toBeCloseTo(0, 6);
+    });
 
-        return between(
-          { x: radius.x / length, y: radius.y / length },
-          tangentAt(jaw.at(tip), jaw.at(next), jaw.at(after)),
-        );
+    it('keeps the cheek lines on a cranium the temples do not lie on', () => {
+      // A crown read off the hair throws the fitted circle away for one sized
+      // by the temples, which then sit outside it. The cheeks must still start
+      // on the circle rather than float beside it.
+      const hairy: Marks = {
+        ...sampleFace,
+        crownTop: at(200, 10),
+        templeL: at(120, 190),
+        templeR: at(280, 190),
       };
+      const { jaw, cranium } = buildFaceGuides(hairy, ASPECT);
+      const offCircle = (point: Corner | undefined) =>
+        Math.abs(gap(point, cranium?.center) - (cranium?.radius ?? 0));
 
-      expect(Math.abs(leaving(0, 1, 2) - 90)).toBeLessThan(0.1);
-      expect(Math.abs(leaving(-1, -2, -3) - 90)).toBeLessThan(0.1);
+      expect(gap(jaw.at(0), inView(120, 190))).toBeGreaterThan(1);
+      expect(offCircle(jaw.at(0))).toBeCloseTo(0, 6);
+      expect(offCircle(jaw.at(-1))).toBeCloseTo(0, 6);
     });
 
-    it('curves the jaw even when the marked corners fall inside the skull', () => {
+    it('never starts a cheek line above the widest point of the cranium', () => {
+      // Temples marked high on the skull would start the cheeks inside the
+      // ball and cut a chord across it.
+      const high: Marks = { ...sampleFace, templeL: at(70, 150), templeR: at(330, 150) };
+      const { jaw, cranium } = buildFaceGuides(high, ASPECT);
+
+      expect(jaw.at(0)?.y).toBeCloseTo(cranium?.center.y ?? 0, 6);
+      expect(jaw.at(-1)?.y).toBeCloseTo(cranium?.center.y ?? 0, 6);
+      expect(jaw.at(0)?.x).toBeCloseTo((cranium?.center.x ?? 0) - (cranium?.radius ?? 0), 6);
+    });
+
+    it('hangs the jaw off the cranium even when the marked corners fall inside it', () => {
       // The cranium of `sampleFace` is centred at (200, 190) with a radius of
       // 130, so these corners sit 108 away — well inside it. That is the
       // ordinary case, not an exotic one: a jaw is narrower than the skull
-      // above it on any face seen from the front. The construction used to
-      // look for a tangent line from the corner to the circle, find none, and
-      // give up into a three-point V, which is what was being drawn.
+      // above it on any face seen from the front, and the cheeks must still
+      // start on the circle and reach the marked corners.
       const tucked = { ...sampleFace, jawL: at(110, 250), jawR: at(290, 250) };
       const { jaw } = buildFaceGuides(tucked, ASPECT);
-      const closest = (target: Corner) =>
-        Math.min(
-          ...jaw.map((point) => gap(point, { x: target.x * 1000, y: target.y * (1000 / ASPECT) })),
-        );
 
-      expect(jaw.length).toBeGreaterThan(3);
-      expect(closest(tucked.jawL)).toBeCloseTo(0, 6);
-      expect(closest(tucked.jawR)).toBeCloseTo(0, 6);
+      expect(jaw).toHaveLength(6);
+      expect(gap(jaw.at(1), inView(110, 250))).toBeCloseTo(0, 6);
+      expect(gap(jaw.at(-2), inView(290, 250))).toBeCloseTo(0, 6);
     });
 
-    it('rounds the chin instead of meeting it in a point', () => {
+    it('closes the chin on a short flat stroke', () => {
       const { jaw } = buildFaceGuides(sampleFace, ASPECT);
-      const low = lowestIndex(jaw);
+      const [chinL, chinR] = jaw.slice(2, 4);
+      const corners = gap(inView(95, 268), inView(305, 268));
 
-      // Directions into each arm, both measured away from the chin. Two arms
-      // that arrive flat point straight at each other, 180 degrees apart; a V
-      // closes that angle toward zero.
-      const meeting = between(
-        tangentAt(jaw.at(low), jaw.at(low - 1), jaw.at(low - 2)),
-        tangentAt(jaw.at(low), jaw.at(low + 1), jaw.at(low + 2)),
-      );
-
-      expect(meeting).toBeGreaterThan(170);
+      // Level on an upright head, and about a tenth as wide as the jaw.
+      expect(chinL?.y).toBeCloseTo(chinR?.y ?? 0, 6);
+      expect(gap(chinL, chinR)).toBeCloseTo(corners * 0.12, 6);
     });
 
     it('falls back to a bare V when there is no cranium to attach to', () => {
@@ -480,7 +450,14 @@ describe(buildFaceGuides, () => {
       // midpoint — the old construction — leaned the whole face by the full
       // 50. Fitting it against the temples and jaw corners too leaves a bow
       // small against the 650-unit head.
-      expect(bowOf(axis)).toBeLessThan(20);
+      expect(leanOf(axis, inView(200, 60), inView(200, 430))).toBeLessThan(20);
+    });
+
+    it('runs the midline a little past the crown and the chin', () => {
+      const { axis } = buildFaceGuides(sampleFace, ASPECT);
+
+      expect(axis.at(0)?.y ?? 0).toBeLessThan(inView(200, 60).y);
+      expect(axis.at(-1)?.y ?? 0).toBeGreaterThan(inView(200, 430).y);
     });
 
     it('bows the midline when every pair says the head is turned', () => {
@@ -497,7 +474,7 @@ describe(buildFaceGuides, () => {
 
       // Three pairs agreeing is evidence of a real three-quarter view, so the
       // axis must still bend toward the side the face is turned to.
-      expect(bowOf(axis)).toBeGreaterThan(40);
+      expect(leanOf(axis, inView(200, 60), inView(200, 430))).toBeGreaterThan(40);
     });
 
     it('divides the face into five eye-widths with six verticals', () => {

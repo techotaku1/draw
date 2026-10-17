@@ -46,15 +46,15 @@ const FACE_DESCRIPTIONS: Record<string, string> = {
   crownTop:
     'the top of the BONE of the skull, on the symmetry axis of the face. The cranium is a ball as wide as the skull, so crownTop stands above the line joining templeL and templeR by about HALF the distance from templeL to templeR. Read that ball off the parts the hair does not cover — the eyes, the brow, the ears, the width of the face at cheek level — and put the crown where its top would be. Spiky or voluminous hair rises far above it, with gaps and points the skull does not have, so the crown sits well inside that silhouette',
   templeL:
-    'the widest point of the SKULL on the LEFT side of the image, at temple height, roughly level with the top of the ears. This is bone width, not hair width: on a character with large hair the skull is much narrower than the silhouette',
+    'the side of the SKULL on the LEFT side of the image, level with the top of the ear: the point where the outer outline of the face begins, the top of the cheek line that runs down from there to the jaw. Put it ON that outline, beside the outer corner of the eye and well outside it. This is bone width, not hair width: on a character with large hair the skull is much narrower than the silhouette',
   templeR:
-    'the widest point of the SKULL on the RIGHT side of the image, at temple height, roughly level with the top of the ears. This is bone width, not hair width: on a character with large hair the skull is much narrower than the silhouette. It must be as far from the midline as templeL is, on the opposite side',
+    'the side of the SKULL on the RIGHT side of the image, level with the top of the ear: the point where the outer outline of the face begins, the top of the cheek line that runs down from there to the jaw. Put it ON that outline, beside the outer corner of the eye and well outside it. This is bone width, not hair width: on a character with large hair the skull is much narrower than the silhouette. It must be as far from the midline as templeL is, on the opposite side, unless the head is clearly turned',
   brow: 'the brow ridge, on the symmetry axis of the face directly above the bridge of the nose. It is ALWAYS higher in the image than both eyes, so its y must be smaller than the y of eyeL and eyeR. Place it at the upper edge of the eyebrows, never level with or below the pupils, and never on an eyebrow itself',
   eyeL: 'the centre of the pupil of the eye on the LEFT side of the image',
   eyeR: 'the centre of the pupil of the eye on the RIGHT side of the image',
-  jawL: 'the angle of the jaw on the LEFT side of the image. Trace the OUTER OUTLINE OF THE FACE downward from the temple: it runs almost straight down past the cheek, then turns inward toward the chin. Put the landmark exactly at that turn. It lies ON that outline, never inside the cheek, and it is the outline of the SKIN that counts, not the outline of the hair. It sits roughly straight below the outer corner of eyeL, at a height between the eye line and the tip of the nose. It is nearly as far from the centre of the face as templeL is: the jaw is only slightly narrower than the skull, so a point near the middle of the face is badly wrong',
-  jawR: 'the angle of the jaw on the RIGHT side of the image. Trace the OUTER OUTLINE OF THE FACE downward from the temple: it runs almost straight down past the cheek, then turns inward toward the chin. Put the landmark exactly at that turn. It lies ON that outline, never inside the cheek, and it is the outline of the SKIN that counts, not the outline of the hair. It sits roughly straight below the outer corner of eyeR, at a height between the eye line and the tip of the nose. It is nearly as far from the centre of the face as templeR is, and it must mirror jawL: the same height and the same distance from the midline, unless the head is clearly turned',
-  chin: 'the lowest point of the OUTLINE OF THE FACE, where the two sides of the jaw meet at the bottom. Put it exactly on that outline, not a little above it inside the face and not below it: it is the last pixel of skin before the background or the neck begins. It is the bottom of the FACE, never the bottom of the head or of the hair, so ignore hair, a collar, a scarf or a shadow hanging below it. It sits on the symmetry axis, lined up vertically with brow, noseTip and mouth, and centred between jawL and jawR. On a realistic face the gap from mouth down to chin is roughly twice the gap from noseTip down to mouth, but on a stylised one the lower face is short and that gap is SMALLER than the nose-to-mouth gap, so the chin sits just below the mouth. Measured on a manga reference the two gaps were 80 and 25 pixels: assuming the realistic ratio there dropped the landmark about a tenth of the head height too low, into the shading under the jaw',
+  jawL: 'the angle of the jaw on the LEFT side of the image. Trace the OUTER OUTLINE OF THE FACE downward from the temple: it runs almost straight down past the cheek, then turns inward toward the chin. Put the landmark exactly at that turn. It lies ON that outline, never inside the cheek, and it is the outline of the SKIN that counts, not the outline of the hair. It sits roughly straight below the outer corner of eyeL, usually close to the height of the mouth: below the bottom of the ear and never level with the eyes. It is nearly as far from the centre of the face as templeL is: the jaw is only slightly narrower than the skull, so a point near the middle of the face is badly wrong',
+  jawR: 'the angle of the jaw on the RIGHT side of the image. Trace the OUTER OUTLINE OF THE FACE downward from the temple: it runs almost straight down past the cheek, then turns inward toward the chin. Put the landmark exactly at that turn. It lies ON that outline, never inside the cheek, and it is the outline of the SKIN that counts, not the outline of the hair. It sits roughly straight below the outer corner of eyeR, usually close to the height of the mouth: below the bottom of the ear and never level with the eyes. It is nearly as far from the centre of the face as templeR is, and it must mirror jawL: the same height and the same distance from the midline, unless the head is clearly turned',
+  chin: 'the lowest point of the OUTLINE OF THE FACE, where the two sides of the jaw meet at the bottom. Put it exactly on that outline, not a little above it inside the face and not below it: it is the last pixel of skin before the background or the neck begins. It is the bottom of the FACE, never the bottom of the head or of the hair, so ignore hair, a collar, a scarf or a shadow hanging below it. It sits on the symmetry axis, lined up vertically with brow, noseTip and mouth, and centred between jawL and jawR. How far it sits below the mouth differs from one artist to the next, so read it off the outline instead of assuming a ratio: the shading under the jaw and the neck are not the chin',
   noseTip: 'the tip of the nose, on the symmetry axis of the face, between brow and mouth',
   mouth:
     'the centre of the mouth, where both lips meet, on the symmetry axis of the face, below noseTip and above chin',
@@ -138,13 +138,14 @@ const buildResponseSchema = (target: Target) => {
 // where the landmarks go — the drawing decides that — but a stylised face
 // stays close to them, so they catch a point that has drifted somewhere
 // impossible. Face only: a body has its own proportions.
-// The five-eye rule is a LIFE-DRAWING rule, and handing it to the model on a
-// stylised face is actively harmful. Measured on an anime reference: the face
-// ran 3.4 eye-widths across, not five, so a model ruling off five pushed the
-// temples outward by half again and drew a cranium 1.26 times wider than the
-// head. Both rulers are given, with the choice made first and stated, because
-// the proportions of the two styles disagree about the width of the skull and
-// the height of the eye line — the two things the whole construction hangs on.
+// The five-eye rule is a LIFE-DRAWING rule, and no single eye count holds for
+// stylised faces either. One anime reference ran 3.4 eye-widths across, so a
+// model ruling off five drew a cranium 1.26 times wider than the head; the
+// manga construction sheet the guides are now drawn after runs 4.7, so ruling
+// off three drew one far narrower. Stylised temples are therefore taken from
+// the outline of the head at the top of the ears, which is where the sheet's
+// cheek lines leave the circle, and the lower-face spacing is read off the
+// drawing for the same reason: the two references disagree on that too.
 const FACE_STYLE = [
   'FIRST decide which kind of face this is, because the proportions below differ',
   'and using the wrong set is the main way this goes wrong.',
@@ -172,12 +173,15 @@ const FACE_PROPORTIONS = [
   'and the head is taller than it is wide.',
   'If STYLISED:',
   'the eye line sits about three fifths of the way down from crownTop to chin, well',
-  'BELOW the middle, because the skull above it is enlarged;',
-  'the face is only about THREE eye-widths across, so templeL and templeR each sit',
-  'about ONE AND A HALF eye-widths out from the midline — never two and a half,',
-  'which would draw a skull wider than the head;',
-  'and noseTip sits low, about two thirds of the way from the eye line down to chin,',
-  'leaving a short chin below the mouth.',
+  'BELOW the middle, because the skull above it is enlarged, and the eyes sit inside',
+  'the lower part of the cranium ball;',
+  'templeL and templeR sit on the outline of the head level with the top of the ears,',
+  'well outside the outer corners of the eyes. How many eye-widths that is varies',
+  'between artists from about three to five, so take it from the outline of the head',
+  'and never count it out from the eyes;',
+  'and noseTip, mouth and chin sit wherever the artist drew them in the lower face —',
+  'their spacing varies from one artist to the next, so read each off the drawing',
+  'instead of assuming a ratio.',
   'If REALISTIC:',
   'the eye line sits near the vertical middle between crownTop and chin;',
   'the face is about five eye-widths across, so templeL and templeR each sit about',

@@ -55,17 +55,21 @@ export const FACE_STEPS: FaceStep[] = [
 
 export const FACE_STEP_COUNT = FACE_STEPS.length;
 
-/** Every layer at once, for the PNG export and nothing else. */
-export const ALL_FACE_LAYERS: FaceLayer[] = [
-  'headBox',
+/**
+ * What the printed or downloaded sheet carries: the construction a manga
+ * artist rules before drawing a head — cranium, cheek lines and jaw, the
+ * centre line and the horizontal divisions — and nothing else. The head box,
+ * the five-eye grid and the nose arc are measuring aids for checking the
+ * landmarks on screen; on a page meant to be drawn over they are clutter the
+ * artist would have to erase.
+ */
+export const SHEET_FACE_LAYERS: FaceLayer[] = [
   'cranium',
   'jaw',
   'axis',
   'hairLine',
   'browLine',
   'eyeLine',
-  'fifth',
-  'noseArc',
   'noseLine',
   'mouthLine',
   'chinLine',

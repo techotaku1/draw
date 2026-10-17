@@ -160,43 +160,48 @@ const saveCanvas = (canvas: HTMLCanvasElement, name: string): void => {
   }, 'image/png');
 };
 
+/** What a guide sheet is composed from, whether it is printed or downloaded. */
+type SheetOptions = {
+  /** Element holding exactly one overlay `<svg>`. */
+  overlayHost: HTMLElement | null;
+  /** Overlay viewBox width in user units. */
+  width: number;
+  /** Overlay viewBox height in user units. */
+  height: number;
+  /** Reference image and the opacity to draw it at, or `null` for plain white. */
+  photo: { src: string; opacity: number } | null;
+  /** Numbered markers to draw on top, empty to omit them. */
+  markers: readonly ExportMarker[];
+};
+
 /**
- * Renders the guide sheet to a PNG and hands it to the browser as a download.
- * It composes the same three layers the on-screen preview shows — reference
- * photo, guide overlay and numbered markers — so what you see is what you get.
+ * Rasterises the guide sheet: white paper, the reference image if asked for,
+ * the guide overlay and the numbered markers, in that order. Printing and the
+ * PNG download both go through here, so the two can never disagree.
  *
  * @param options Everything the sheet is composed from.
- * @param options.overlayHost Element holding exactly one overlay `<svg>`.
- * @param options.width Overlay viewBox width in user units.
- * @param options.height Overlay viewBox height in user units.
- * @param options.name Prefix of the downloaded file name.
- * @param options.photo Reference image and the opacity to draw it at, or
- * `null` to export the guides on plain white.
- * @param options.markers Numbered markers to draw on top, empty to omit them.
+ * @param scale Pixels per overlay user unit.
+ * @returns The composed canvas, or `null` when there is nothing to draw on.
  */
-export const downloadGuideSheet = async (options: {
-  overlayHost: HTMLElement | null;
-  width: number;
-  height: number;
-  name: string;
-  photo: { src: string; opacity: number } | null;
-  markers: readonly ExportMarker[];
-}): Promise<void> => {
+const composeSheet = async (
+  options: SheetOptions,
+  scale: number,
+): Promise<HTMLCanvasElement | null> => {
   const { overlayHost, width, height } = options;
 
   if (!overlayHost) {
-    return;
+    return null;
   }
 
   const canvas = document.createElement('canvas');
 
-  canvas.width = width * EXPORT_SCALE;
-  canvas.height = height * EXPORT_SCALE;
+  canvas.width = width * scale;
+  canvas.height = height * scale;
 
   const context = canvas.getContext('2d');
 
   if (!context) {
-    return;
+    return null;
   }
 
   context.fillStyle = '#ffffff';
@@ -227,5 +232,165 @@ export const downloadGuideSheet = async (options: {
     drawMarkers(context, options.markers, canvas.width, canvas.height);
   }
 
-  saveCanvas(canvas, options.name);
+  return canvas;
+};
+
+/**
+ * Renders the guide sheet to a PNG and hands it to the browser as a download.
+ *
+ * @param options Everything the sheet is composed from, plus the file name.
+ * @param options.name Prefix of the downloaded file name.
+ */
+export const downloadGuideSheet = async (options: SheetOptions & { name: string }) => {
+  const canvas = await composeSheet(options, EXPORT_SCALE);
+
+  if (canvas) {
+    saveCanvas(canvas, options.name);
+  }
+};
+
+/**
+ * Print resolution, in pixels per overlay user unit. Denser than the PNG: a
+ * sheet a thousand units wide comes out at three thousand pixels, about 400
+ * dpi across an A4 page, so the thinnest guide still prints as a clean line.
+ */
+const PRINT_SCALE = 3;
+
+/**
+ * Largest canvas the print path will ask for, in pixels. Safari on iOS
+ * refuses any canvas over 16,777,216 pixels and then hands back no image at
+ * all, which a portrait sheet at full print scale would exceed — a thousand
+ * units wide and two thousand tall is already eighteen million.
+ */
+const MAX_PRINT_PIXELS = 16_000_000;
+
+/**
+ * The print scale, reduced just enough for the sheet to stay under the canvas
+ * limit. A tall sheet loses a little density instead of printing nothing.
+ *
+ * @param width Overlay viewBox width in user units.
+ * @param height Overlay viewBox height in user units.
+ * @returns Pixels per user unit for the printed sheet.
+ */
+const printScale = (width: number, height: number): number =>
+  Math.min(PRINT_SCALE, Math.sqrt(MAX_PRINT_PIXELS / Math.max(1, width * height)));
+
+/** Paper margin around the printed sheet. */
+const PRINT_MARGIN = '10mm';
+
+/** The print frame of the previous request, removed when the next one starts. */
+let releasePrintFrame: (() => void) | null = null;
+
+const escapeHtml = (text: string): string =>
+  text
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
+
+/**
+ * The document the print frame holds: the sheet alone, as large as the page
+ * allows without cropping or spilling onto a second page, turned to the
+ * orientation that fits it best.
+ *
+ * @param imageUrl The composed sheet.
+ * @param title Document title, which browsers offer as the PDF file name.
+ * @param landscape Whether the sheet is wider than it is tall.
+ * @returns The HTML for the frame's `srcdoc`.
+ */
+const printDocument = (imageUrl: string, title: string, landscape: boolean): string =>
+  [
+    '<!doctype html><html><head><meta charset="utf-8">',
+    `<title>${escapeHtml(title)}</title>`,
+    '<style>',
+    `@page { size: ${landscape ? 'landscape' : 'portrait'}; margin: ${PRINT_MARGIN}; }`,
+    'html, body { margin: 0; padding: 0; background: #ffffff; }',
+    'body { display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }',
+    'img { display: block; max-width: 100%; max-height: 100vh; object-fit: contain; }',
+    '</style></head>',
+    `<body><img src="${escapeHtml(imageUrl)}" alt=""></body></html>`,
+  ].join('');
+
+/**
+ * Puts a composed sheet into a hidden frame of its own and prints the frame.
+ *
+ * A frame rather than print styles on the studio: the studio is a
+ * full-viewport app, and hiding every piece of it for print is fragile, where a
+ * frame holding one image prints exactly that image. The frame stays until the
+ * dialog reports it has closed, because removing it any sooner cancels the
+ * print in some browsers; a browser that never reports it has its frame
+ * cleared by the next print instead.
+ *
+ * @param blob The composed sheet as a PNG.
+ * @param title Title of the printed document.
+ * @param landscape Whether the sheet is wider than it is tall.
+ */
+const printInFrame = (blob: Blob, title: string, landscape: boolean): void => {
+  releasePrintFrame?.();
+
+  const imageUrl = URL.createObjectURL(blob);
+  const frame = document.createElement('iframe');
+  const release = () => {
+    frame.remove();
+    URL.revokeObjectURL(imageUrl);
+
+    if (releasePrintFrame === release) {
+      releasePrintFrame = null;
+    }
+  };
+
+  releasePrintFrame = release;
+  frame.setAttribute('aria-hidden', 'true');
+  frame.tabIndex = -1;
+  // Zero-sized rather than hidden: some browsers print nothing from a frame
+  // that is `display: none` or `visibility: hidden`.
+  frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+  frame.addEventListener(
+    'load',
+    async () => {
+      const view = frame.contentWindow;
+
+      if (!view) {
+        release();
+
+        return;
+      }
+
+      try {
+        await frame.contentDocument?.querySelector('img')?.decode();
+      } catch {
+        // Print whatever loaded; an empty page says more than a dead button.
+      }
+
+      view.addEventListener(
+        'afterprint',
+        () => {
+          setTimeout(release, REVOKE_DELAY_MS);
+        },
+        { once: true },
+      );
+      view.focus();
+      view.print();
+    },
+    { once: true },
+  );
+  frame.srcdoc = printDocument(imageUrl, title, landscape);
+  document.body.append(frame);
+};
+
+/**
+ * Opens the browser's print dialog on the guide sheet alone, fitted to the
+ * page, so the artist can redraw the reference on paper.
+ *
+ * @param options Everything the sheet is composed from, plus the page title.
+ * @param options.title Title of the printed document.
+ */
+export const printGuideSheet = async (options: SheetOptions & { title: string }) => {
+  const canvas = await composeSheet(options, printScale(options.width, options.height));
+
+  canvas?.toBlob((blob) => {
+    if (blob) {
+      printInFrame(blob, options.title, options.width > options.height);
+    }
+  }, 'image/png');
 };

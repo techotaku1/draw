@@ -1,15 +1,26 @@
 'use client';
 
 import Image from 'next/image';
-import { useRef } from 'react';
-import { BUTTON_SOLID, PANEL_NOTE } from './controls';
-import { downloadGuideSheet } from './export';
+import { useRef, useState } from 'react';
+import { BUTTON, BUTTON_SOLID, PANEL_NOTE } from './controls';
+import { downloadGuideSheet, printGuideSheet } from './export';
 import type { ExportMarker } from './export';
 import type { LandmarkDef, Marks } from './types';
 
-// What you see here is exactly what the PNG contains. It owns no options of its
-// own: the photo opacity, the guides and the markers all come from the one
-// control strip that also drives the marking canvas.
+/**
+ * Opacity of the drawing behind the guides when the artist asks for it: faint
+ * enough that the construction stays the thing on the page, as on a light
+ * table, and that pencil over a printout still reads.
+ */
+const SHEET_PHOTO_OPACITY = 0.25;
+
+// The sheet is what the artist draws from — printed, or open beside the paper
+// — so it starts as the bare construction: no drawing behind it and no
+// numbered markers, both of which belong to marking the reference, not to
+// redrawing it. Its two options are its own for that reason. Sharing the
+// canvas's would mean fading the reference and hiding the handles in the very
+// view the artist uses to correct the landmarks, just to get a clean page.
+// The preview is exactly what is printed or downloaded.
 export const ExportPanel = (props: {
   imageSrc: string | null;
   /** Reference image aspect ratio (`width / height`). */
@@ -17,22 +28,27 @@ export const ExportPanel = (props: {
   /** Overlay viewBox size in user units. */
   width: number;
   height: number;
-  /** Shared with the canvas; `0` leaves the photo out of the sheet entirely. */
-  photoOpacity: number;
-  showMarkers: boolean;
   landmarks: readonly LandmarkDef[];
   marks: Marks;
-  /** Guide overlay, or `null` when the guides are switched off. */
+  /** The guides the sheet carries. */
   overlay: React.ReactNode;
   fileName: string;
   previewHint: string;
+  photoLabel: string;
+  markersLabel: string;
+  printLabel: string;
+  /** Title of the printed document, which browsers offer as the PDF name. */
+  printTitle: string;
   downloadLabel: string;
 }) => {
   const previewRef = useRef<HTMLDivElement>(null);
+  const [withPhoto, setWithPhoto] = useState(false);
+  const [withMarkers, setWithMarkers] = useState(false);
 
-  const showPhoto = Boolean(props.imageSrc) && props.photoOpacity > 0;
+  const showPhoto = Boolean(props.imageSrc) && withPhoto;
+  const hasGuides = Object.keys(props.marks).length > 0;
 
-  const markers: ExportMarker[] = props.showMarkers
+  const markers: ExportMarker[] = withMarkers
     ? props.landmarks.flatMap((def, index) => {
         const point = props.marks[def.id];
 
@@ -42,16 +58,14 @@ export const ExportPanel = (props: {
       })
     : [];
 
-  const handleDownload = async () => {
-    await downloadGuideSheet({
-      overlayHost: previewRef.current,
-      width: props.width,
-      height: props.height,
-      name: props.fileName,
-      photo:
-        showPhoto && props.imageSrc ? { src: props.imageSrc, opacity: props.photoOpacity } : null,
-      markers,
-    });
+  // The preview element itself is read only when a button is pressed: refs are
+  // not populated during render.
+  const sheet = {
+    width: props.width,
+    height: props.height,
+    photo:
+      showPhoto && props.imageSrc ? { src: props.imageSrc, opacity: SHEET_PHOTO_OPACITY } : null,
+    markers,
   };
 
   return (
@@ -71,7 +85,7 @@ export const ExportPanel = (props: {
             unoptimized
             sizes="200px"
             className="object-contain"
-            style={{ opacity: props.photoOpacity }}
+            style={{ opacity: SHEET_PHOTO_OPACITY }}
           />
         )}
 
@@ -92,11 +106,57 @@ export const ExportPanel = (props: {
         ))}
       </div>
 
+      <div className="flex flex-col gap-1.5 text-[12px] text-chalk-dim">
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={withPhoto}
+            disabled={!props.imageSrc}
+            onChange={(event) => {
+              setWithPhoto(event.target.checked);
+            }}
+          />
+          {props.photoLabel}
+        </label>
+
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={withMarkers}
+            onChange={(event) => {
+              setWithMarkers(event.target.checked);
+            }}
+          />
+          {props.markersLabel}
+        </label>
+      </div>
+
       <button
         type="button"
-        disabled={!props.imageSrc}
+        disabled={!(props.imageSrc && hasGuides)}
         className={`${BUTTON_SOLID} w-full py-2`}
-        onClick={handleDownload}
+        onClick={async () => {
+          await printGuideSheet({
+            ...sheet,
+            overlayHost: previewRef.current,
+            title: props.printTitle,
+          });
+        }}
+      >
+        {props.printLabel}
+      </button>
+
+      <button
+        type="button"
+        disabled={!(props.imageSrc && hasGuides)}
+        className={`${BUTTON} w-full py-2`}
+        onClick={async () => {
+          await downloadGuideSheet({
+            ...sheet,
+            overlayHost: previewRef.current,
+            name: props.fileName,
+          });
+        }}
       >
         {props.downloadLabel}
       </button>

@@ -14,7 +14,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## Project
 
-DrawSkeleton: a drawing-reference tool for anime/manga/comic artists. The user marks landmarks on a reference image (17 body, 10 face) and the app draws the construction sketch (line of action, blocking-in, shoulder/hip axes, wireframe, joints) plus proportion measurements, exportable as PNG. Built on the ixartz Next.js Boilerplate: Next 16, React 19, next-intl, Clerk, Drizzle + PGlite/Postgres, Arcjet, Sentry, Tailwind 4, Vitest, Playwright, Storybook.
+DrawSkeleton: a drawing-reference tool for anime/manga/comic artists. The user marks landmarks on a reference image (17 body, 10 face) and the app draws the construction sketch (line of action, blocking-in, shoulder/hip axes, wireframe, joints) plus proportion measurements, and prints them or exports them as PNG so the artist can redraw the reference by hand. Built on the ixartz Next.js Boilerplate: Next 16, React 19, next-intl, Clerk, Drizzle + PGlite/Postgres, Arcjet, Sentry, Tailwind 4, Vitest, Playwright, Storybook.
 
 - `origin` still points at `ixartz/Next-js-Boilerplate`; do not push until a real remote is set.
 - The studio work (`src/features/`, `(studio)` routes, `src/libs/Gemini.ts`, `DRAWSKELETON.md`) is untracked. Run `git status` before assuming a file is committed.

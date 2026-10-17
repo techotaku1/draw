@@ -15,7 +15,7 @@ import { FaceMetricsPanel, FacePoints } from './FacePanel';
 import { buildFaceGuides } from './guides';
 import { FACE_COUNT, FACE_SEQUENCE, isFaceId } from './landmarks';
 import type { FaceLandmarkId } from './landmarks';
-import { ALL_FACE_LAYERS, FACE_STEP_COUNT, FACE_STEPS, faceLayersForStep } from './steps';
+import { FACE_STEP_COUNT, FACE_STEPS, faceLayersForStep, SHEET_FACE_LAYERS } from './steps';
 
 const nextUnset = (current: Marks): FaceLandmarkId | null =>
   FACE_SEQUENCE.find((def) => !current[def.id])?.id ?? null;
@@ -205,22 +205,22 @@ export const FaceStudio = (props: {
               aspect={props.aspect}
               width={VIEWBOX_WIDTH}
               height={viewBoxHeight(props.aspect)}
-              photoOpacity={props.photoOpacity}
-              showMarkers={props.showMarkers}
               landmarks={FACE_SEQUENCE}
               marks={props.marks}
               overlay={
-                props.showGuides ? (
-                  <FaceOverlay
-                    guides={guides}
-                    layers={ALL_FACE_LAYERS}
-                    aspect={props.aspect}
-                    className="pointer-events-none absolute inset-0 h-full w-full"
-                  />
-                ) : null
+                <FaceOverlay
+                  guides={guides}
+                  layers={SHEET_FACE_LAYERS}
+                  aspect={props.aspect}
+                  className="pointer-events-none absolute inset-0 h-full w-full"
+                />
               }
               fileName="face"
               previewHint={t('export_hint')}
+              photoLabel={t('sheet_photo')}
+              markersLabel={t('sheet_markers')}
+              printLabel={t('print_sheet')}
+              printTitle={t('sheet_title')}
               downloadLabel={t('download_png')}
             />
           ),

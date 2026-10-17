@@ -26,10 +26,9 @@ desktop: a command bar on top, the canvas, one tabbed panel (points,
 measurements, steps, sheet) and a status strip. Below `lg` the page scrolls
 normally — a phone does not have the height for canvas and panel at once.
 
-Every control appears exactly once, and they all live in the status strip:
-opacity, guides, markers. Each one drives the marking canvas, the sheet preview
-and the downloaded PNG at the same time, so nothing is set in two places and the
-small preview always shows what the file will contain.
+The view controls live in the status strip: opacity, guides, markers. They
+drive the marking canvas only. The sheet tab has two options of its own, because
+the sheet serves a different job (see "The drawing sheet" below).
 
 The chrome is strictly neutral graphite and selection is a chalk-on-graphite
 inversion rather than a colour, so the guide lines are the only saturated pixels
@@ -134,17 +133,31 @@ every derived shape is computed from those points — no model, no inference.
 Each style preset carries its canonical range (anime 6.5–7.5 heads, manga
 7.5–8.5, comic 8–9, chibi 2–3) and the panel says which way to correct.
 
-### PNG export
+### The drawing sheet
 
-The export panel shows a live preview of the sheet and downloads exactly that:
-reference photo at the chosen opacity, the full guide overlay, and the numbered
-markers. The panel owns no options of its own — the three status-strip controls
-decide what is in it, and the preview is the confirmation that you get what you
-expect before spending a download.
+The point of the tool is to take a finished drawing, recover its construction
+lines, and hand them back to the artist to redraw it in pencil — printed, or open
+beside the paper. The sheet tab produces that page: it prints (`printGuideSheet`)
+or downloads as PNG (`downloadGuideSheet`), and its preview is exactly what
+either one produces, because both go through the same `composeSheet`.
 
-The teaching step is the one viewing aid that stays local to the canvas: the
-sheet always carries the complete construction, because a half-built sheet is
-never what you want on paper.
+It starts as the bare construction. The drawing behind it (faint, at 25 %) and
+the numbered markers are opt-in checkboxes in the panel, off by default: both
+belong to marking the reference, not to redrawing it, and sharing the canvas's
+controls meant fading the reference and hiding the drag handles just to get a
+clean page. The guides are always on the sheet, whatever the canvas shows.
+
+The face sheet carries `SHEET_FACE_LAYERS` — cranium, cheek lines and jaw, axis
+and the horizontal divisions, as on the construction sheet the guides follow.
+The head box, the five-eye grid and the nose arc are measuring aids for checking
+the landmarks on screen and stay off the page. The teaching step stays local to
+the canvas: the sheet always carries the complete construction.
+
+Printing composes the sheet at up to 3 px per user unit (capped at 16 million
+pixels, the iOS Safari canvas limit) and prints it from a zero-size `srcdoc`
+frame holding one image, turned to the orientation that fits it, with a 10 mm
+margin. Print styles on the studio itself were not an option: it is a
+full-viewport app, and hiding every piece of it for print is fragile.
 
 Switching the markers off hides the only handles you can drag, so turn them back
 on to keep editing points.

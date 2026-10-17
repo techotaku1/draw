@@ -315,22 +315,22 @@ export const SkeletonStudio = (props: {
               aspect={props.aspect}
               width={VIEWBOX_WIDTH}
               height={viewBoxHeight(props.aspect)}
-              photoOpacity={props.photoOpacity}
-              showMarkers={props.showMarkers}
               landmarks={LANDMARKS}
               marks={props.marks}
               overlay={
-                props.showGuides ? (
-                  <SkeletonOverlay
-                    skeleton={skeleton}
-                    layers={ALL_LAYERS}
-                    aspect={props.aspect}
-                    className="pointer-events-none absolute inset-0 h-full w-full"
-                  />
-                ) : null
+                <SkeletonOverlay
+                  skeleton={skeleton}
+                  layers={ALL_LAYERS}
+                  aspect={props.aspect}
+                  className="pointer-events-none absolute inset-0 h-full w-full"
+                />
               }
               fileName="body"
               previewHint={t('export_hint')}
+              photoLabel={t('sheet_photo')}
+              markersLabel={t('sheet_markers')}
+              printLabel={t('print_sheet')}
+              printTitle={t('sheet_title')}
               downloadLabel={t('download_png')}
             />
           ),

@@ -278,8 +278,27 @@ const printScale = (width: number, height: number): number =>
 /** Paper margin around the printed sheet. */
 const PRINT_MARGIN = '10mm';
 
+/**
+ * Tallest the printed sheet may be, per orientation: the printable height of
+ * the shorter of A4 and US Letter once the margin is taken off, so it fits one
+ * page of either.
+ *
+ * A physical length rather than `100vh` or a percentage, because WebKit —
+ * Safari, and every browser on iOS and iPadOS — resolves both against the
+ * on-screen size of the frame, not the page, when it prints a frame. That
+ * frame is zero by zero, so the sheet printed as a blank page.
+ */
+const PRINT_MAX_HEIGHT = { landscape: '190mm', portrait: '259mm' } as const;
+
 /** The print frame of the previous request, removed when the next one starts. */
 let releasePrintFrame: (() => void) | null = null;
+
+/**
+ * Number of the latest print request. A request that is overtaken while its
+ * sheet is still being composed drops out, so a double click opens one print
+ * dialog rather than a second one straight after the first.
+ */
+let latestPrint = 0;
 
 const escapeHtml = (text: string): string =>
   text
@@ -290,8 +309,8 @@ const escapeHtml = (text: string): string =>
 
 /**
  * The document the print frame holds: the sheet alone, as large as the page
- * allows without cropping or spilling onto a second page, turned to the
- * orientation that fits it best.
+ * allows without cropping or spilling onto a second page, centred across it
+ * and turned to the orientation that fits it best.
  *
  * @param imageUrl The composed sheet.
  * @param title Document title, which browsers offer as the PDF file name.
@@ -305,8 +324,8 @@ const printDocument = (imageUrl: string, title: string, landscape: boolean): str
     '<style>',
     `@page { size: ${landscape ? 'landscape' : 'portrait'}; margin: ${PRINT_MARGIN}; }`,
     'html, body { margin: 0; padding: 0; background: #ffffff; }',
-    'body { display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }',
-    'img { display: block; max-width: 100%; max-height: 100vh; object-fit: contain; }',
+    'img { display: block; margin: 0 auto; max-width: 100%; break-inside: avoid; }',
+    `img { max-height: ${PRINT_MAX_HEIGHT[landscape ? 'landscape' : 'portrait']}; }`,
     '</style></head>',
     `<body><img src="${escapeHtml(imageUrl)}" alt=""></body></html>`,
   ].join('');
@@ -362,15 +381,27 @@ const printInFrame = (blob: Blob, title: string, landscape: boolean): void => {
         // Print whatever loaded; an empty page says more than a dead button.
       }
 
+      // Printing a frame means focusing it, and a frame that is aria-hidden and
+      // about to be removed is no place to leave a keyboard user. Focus goes
+      // back to the button that asked once the dialog is done with it.
+      const opener = document.activeElement;
+      const restoreFocus = () => {
+        if (opener instanceof HTMLElement && opener.isConnected) {
+          opener.focus();
+        }
+      };
+
       view.addEventListener(
         'afterprint',
         () => {
+          restoreFocus();
           setTimeout(release, REVOKE_DELAY_MS);
         },
         { once: true },
       );
       view.focus();
       view.print();
+      restoreFocus();
     },
     { once: true },
   );
@@ -386,10 +417,13 @@ const printInFrame = (blob: Blob, title: string, landscape: boolean): void => {
  * @param options.title Title of the printed document.
  */
 export const printGuideSheet = async (options: SheetOptions & { title: string }) => {
+  latestPrint += 1;
+
+  const request = latestPrint;
   const canvas = await composeSheet(options, printScale(options.width, options.height));
 
   canvas?.toBlob((blob) => {
-    if (blob) {
+    if (blob && request === latestPrint) {
       printInFrame(blob, options.title, options.width > options.height);
     }
   }, 'image/png');

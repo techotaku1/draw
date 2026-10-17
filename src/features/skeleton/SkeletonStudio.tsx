@@ -4,6 +4,7 @@ import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import { ADVICE, BUTTON } from '@/features/landmarks/controls';
 import { ExportPanel } from '@/features/landmarks/ExportPanel';
+import type { SheetContent } from '@/features/landmarks/ExportPanel';
 import { GuideSteps } from '@/features/landmarks/GuideSteps';
 import { LandmarkCanvas } from '@/features/landmarks/LandmarkCanvas';
 import { StudioLayout } from '@/features/landmarks/StudioLayout';
@@ -70,6 +71,8 @@ export const SkeletonStudio = (props: {
   photoOpacity: number;
   showGuides: boolean;
   showMarkers: boolean;
+  sheetContent: SheetContent;
+  onSheetContentChange: (content: SheetContent) => void;
   marks: Marks;
   onMarksChange: (marks: Marks) => void;
   commandBar: React.ReactNode;
@@ -317,6 +320,8 @@ export const SkeletonStudio = (props: {
               height={viewBoxHeight(props.aspect)}
               landmarks={LANDMARKS}
               marks={props.marks}
+              content={props.sheetContent}
+              onContentChange={props.onSheetContentChange}
               overlay={
                 <SkeletonOverlay
                   skeleton={skeleton}

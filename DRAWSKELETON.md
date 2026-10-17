@@ -157,7 +157,12 @@ Printing composes the sheet at up to 3 px per user unit (capped at 16 million
 pixels, the iOS Safari canvas limit) and prints it from a zero-size `srcdoc`
 frame holding one image, turned to the orientation that fits it, with a 10 mm
 margin. Print styles on the studio itself were not an option: it is a
-full-viewport app, and hiding every piece of it for print is fragile.
+full-viewport app, and hiding every piece of it for print is fragile. The image
+is capped in millimetres (the printable height of the shorter of A4 and Letter),
+never in `vh` or percentages: WebKit resolves those against the zero-size frame
+when it prints one, which printed a blank page on Safari and on every iOS
+browser. A print overtaken by a second click while composing drops out, and
+focus goes back to the button once the dialog closes.
 
 Switching the markers off hides the only handles you can drag, so turn them back
 on to keep editing points.

@@ -9,6 +9,7 @@ import { JOINT_SEQUENCE } from '@/features/skeleton/joints';
 import { SkeletonStudio } from '@/features/skeleton/SkeletonStudio';
 import { BUTTON, BUTTON_SOLID, SEGMENT_GROUP, segment } from './controls';
 import { readMarks } from './export';
+import type { SheetContent } from './ExportPanel';
 import { toDetectionPng } from './imageData';
 import type { Marks } from './types';
 
@@ -67,7 +68,7 @@ const readTarget = (payload: unknown): StudioMode | null => {
 };
 
 // Owns everything the two studios share: the reference image, the active mode,
-// the single photo opacity and the AI detection. Keeping the image here is what
+// the view controls, what goes on the drawing sheet and the AI detection. Keeping the image here is what
 // lets the detector move the user between modes without losing the upload.
 export const StudioShell = (props: { initialMode: StudioMode }) => {
   const t = useTranslations('StudioShell');
@@ -81,6 +82,11 @@ export const StudioShell = (props: { initialMode: StudioMode }) => {
   const [photoOpacity, setPhotoOpacity] = useState(DEFAULT_PHOTO_OPACITY);
   const [showGuides, setShowGuides] = useState(true);
   const [showMarkers, setShowMarkers] = useState(true);
+  // The sheet starts as the bare construction, the page the artist draws from.
+  const [sheetContent, setSheetContent] = useState<SheetContent>({
+    photo: false,
+    markers: false,
+  });
   const [detect, setDetect] = useState<DetectState>({ status: 'idle' });
 
   const replaceImage = (src: string | null, nextAspect: number) => {
@@ -246,9 +252,10 @@ export const StudioShell = (props: { initialMode: StudioMode }) => {
     </>
   );
 
-  // The single control strip for what the drawing shows. Every one of these
-  // drives the canvas, the sheet preview and the downloaded PNG at once, so a
-  // setting is never worth hunting for in two places.
+  // The control strip for what the marking canvas shows. These drive the canvas
+  // only: the drawing sheet has its own two options in its tab (see
+  // ExportPanel), because a page to draw from wants neither the faded
+  // reference nor the drag handles this view needs.
   const viewControls = (
     <>
       <label className="flex shrink-0 items-center gap-2 text-chalk-dim">
@@ -321,6 +328,8 @@ export const StudioShell = (props: { initialMode: StudioMode }) => {
     photoOpacity,
     showGuides,
     showMarkers,
+    sheetContent,
+    onSheetContentChange: setSheetContent,
     commandBar,
     viewControls,
     notice,

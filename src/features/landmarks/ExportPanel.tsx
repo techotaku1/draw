@@ -1,11 +1,19 @@
 'use client';
 
 import Image from 'next/image';
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
 import { BUTTON, BUTTON_SOLID, PANEL_NOTE } from './controls';
 import { downloadGuideSheet, printGuideSheet } from './export';
 import type { ExportMarker } from './export';
 import type { LandmarkDef, Marks } from './types';
+
+/** What the artist chose to put on the sheet besides the guides. */
+export type SheetContent = {
+  /** The reference drawing, faint, behind the guides. */
+  photo: boolean;
+  /** The numbered landmark markers. */
+  markers: boolean;
+};
 
 /**
  * Opacity of the drawing behind the guides when the artist asks for it: faint
@@ -20,6 +28,8 @@ const SHEET_PHOTO_OPACITY = 0.25;
 // redrawing it. Its two options are its own for that reason. Sharing the
 // canvas's would mean fading the reference and hiding the handles in the very
 // view the artist uses to correct the landmarks, just to get a clean page.
+// They are held by the shell rather than here, because the panel unmounts with
+// its tab and the artist's choice should survive a look at another one.
 // The preview is exactly what is printed or downloaded.
 export const ExportPanel = (props: {
   imageSrc: string | null;
@@ -30,6 +40,8 @@ export const ExportPanel = (props: {
   height: number;
   landmarks: readonly LandmarkDef[];
   marks: Marks;
+  content: SheetContent;
+  onContentChange: (content: SheetContent) => void;
   /** The guides the sheet carries. */
   overlay: React.ReactNode;
   fileName: string;
@@ -42,13 +54,11 @@ export const ExportPanel = (props: {
   downloadLabel: string;
 }) => {
   const previewRef = useRef<HTMLDivElement>(null);
-  const [withPhoto, setWithPhoto] = useState(false);
-  const [withMarkers, setWithMarkers] = useState(false);
 
-  const showPhoto = Boolean(props.imageSrc) && withPhoto;
+  const showPhoto = Boolean(props.imageSrc) && props.content.photo;
   const hasGuides = Object.keys(props.marks).length > 0;
 
-  const markers: ExportMarker[] = withMarkers
+  const markers: ExportMarker[] = props.content.markers
     ? props.landmarks.flatMap((def, index) => {
         const point = props.marks[def.id];
 
@@ -110,10 +120,10 @@ export const ExportPanel = (props: {
         <label className="flex items-center gap-2">
           <input
             type="checkbox"
-            checked={withPhoto}
+            checked={props.content.photo}
             disabled={!props.imageSrc}
             onChange={(event) => {
-              setWithPhoto(event.target.checked);
+              props.onContentChange({ ...props.content, photo: event.target.checked });
             }}
           />
           {props.photoLabel}
@@ -122,9 +132,9 @@ export const ExportPanel = (props: {
         <label className="flex items-center gap-2">
           <input
             type="checkbox"
-            checked={withMarkers}
+            checked={props.content.markers}
             onChange={(event) => {
-              setWithMarkers(event.target.checked);
+              props.onContentChange({ ...props.content, markers: event.target.checked });
             }}
           />
           {props.markersLabel}
